@@ -21,6 +21,10 @@ export const MENUS = [
     full: ['mid_lc', 'mid_lw', 'mid_top', 'mid_rw', 'mid_rc', 'paint', 'ft', 'ft', 'mid_lw', 'mid_top', 'mid_rw', 'ft'],
     est: { easy: 30, full: 60 },
     career: { years: '2010–2019', fg: 43.3, tp: 34.2, ft: 80.9, tpm: 449, fact: '2012 年掀起「林來瘋」的傳奇後衛' },
+    basis: {
+      text: '靈感來自 Lin 自2011年起連續五個夏天在灣區與投籃教練 Doc Scheppler 重造跳投的訓練；中距＋罰球配置為本 App 依切入型後衛需求設計，非本人菜單',
+      source: 'HoopsHabit 2015', url: 'https://hoopshabit.com/2015/08/31/exclusive-interview-with-jeremy-lins-shooting-coach-doc-scheppler/',
+    },
   },
   {
     id: 'dirk', name: 'Dirk 中距大師', short: 'Dirk 中距', player: 'Dirk Nowitzki', playerStatus: 'retired', tier: 2,
@@ -31,6 +35,10 @@ export const MENUS = [
     full: ['mid_lc', 'mid_lw', 'mid_top', 'mid_rw', 'mid_rc', 'mid_top', 'mid_lw', 'mid_top', 'mid_rw', 'mid_top', 'ft', 'ft'],
     est: { easy: 30, full: 60 },
     career: { years: '1998–2019', fg: 47.1, tp: 38.0, ft: 87.9, tpm: 1982, fact: '50-40-90 俱樂部成員，2007 年 MVP' },
+    basis: {
+      text: '依據 Dirk 自16歲起每年休賽季與導師 Holger Geschwindner 在德國特訓的報導；定點位置取自 Dirk 的招牌出手熱區，為本 App 設計',
+      source: 'ESPN 2015', url: 'https://www.espn.com/nba/story/_/id/13893319/how-dirk-nowitzki-prepares-fire-all-cylinders',
+    },
   },
   {
     id: 'allen', name: 'Ray Allen 三分入門', short: 'Allen 三分', player: 'Ray Allen', playerStatus: 'retired', tier: 3,
@@ -41,6 +49,10 @@ export const MENUS = [
     full: ['3pt_lc', '3pt_rc', '3pt_lw', '3pt_rw', '3pt_top', 'ft', '3pt_lc', '3pt_rc', '3pt_lw', '3pt_rw', '3pt_top', 'ft'],
     est: { easy: 30, full: 60 },
     career: { years: '1996–2014', fg: 45.2, tp: 40.0, ft: 89.4, tpm: 2973, fact: '前史上三分王（2,973 顆），2021 年才被 Curry 超越' },
+    basis: {
+      text: '取材自 Allen 著名的賽前儀式：開賽前約3小時到場，五個定點依固定順序投籃、分秒不差（原始儀式含中距五點）',
+      source: 'Boston Globe 2008', url: 'http://archive.boston.com/sports/articles/2008/04/20/routine_excellence_is_allens_secret/',
+    },
   },
   {
     id: 'klay', name: 'Klay 三分量產', short: 'Klay 量產', player: 'Klay Thompson', playerStatus: 'active', tier: 4,
@@ -51,6 +63,10 @@ export const MENUS = [
     full: ['3pt_lc', '3pt_lw', '3pt_top', '3pt_rw', '3pt_rc', 'ft', '3pt_lc', '3pt_lw', '3pt_top', '3pt_rw', '3pt_rc', 'ft'],
     est: { easy: 30, full: 60 },
     career: { years: '2011–現役', fg: 44.8, tp: 40.9, ft: 85.8, tpm: 2899, fact: '單場 14 顆三分的 NBA 紀錄保持人' },
+    basis: {
+      text: '取材自 Klay 於2014年自述的賽前菜單：五點循環進球制、被助教一句「別把手感留在訓練場」砍半到15–20分鐘',
+      source: 'Bleacher Report 2014', url: 'https://bleacherreport.com/articles/2173236-team-usas-klay-thompson-breaks-down-the-skills-that-make-him-a-shooting-star',
+    },
   },
   {
     id: 'lillard', name: 'Lillard 深三專項', short: 'Lillard 深三', player: 'Damian Lillard', playerStatus: 'active', tier: 5,
@@ -61,6 +77,10 @@ export const MENUS = [
     full: ['3pt_lw', '3pt_top', '3pt_rw', 'deep_l', 'deep_top', 'deep_r', '3pt_top', 'deep_l', 'deep_top', 'deep_r', 'ft', 'ft'],
     est: { easy: 30, full: 60 },
     career: { years: '2012–現役', fg: 43.9, tp: 37.1, ft: 89.9, tpm: 2804, fact: '以「logo shot」超遠三分聞名' },
+    basis: {
+      text: '取材自 Lillard 於2018年休賽季在拉斯維加斯與訓練師 Phil Beckner 的深三特訓：在三分線外4呎貼出「4分線」逐點苦練',
+      source: 'ESPN 2019', url: 'https://www.espn.com/nba/story/_/id/28312678/how-deep-audacious-3-pointers-taking-nba',
+    },
   },
   {
     id: 'curry', name: 'Curry 終極試煉', short: 'Curry 試煉', player: 'Stephen Curry', playerStatus: 'active', tier: 6,
@@ -71,6 +91,10 @@ export const MENUS = [
     full: ['3pt_lc', '3pt_lw', '3pt_top', '3pt_rw', '3pt_rc', 'deep_l', 'deep_top', 'deep_r', '3pt_top', 'deep_top', 'ft', 'ft'],
     est: { easy: 30, full: 60 },
     career: { years: '2009–現役', fg: 47.1, tp: 42.2, ft: 91.2, tpm: 4248, fact: '史上三分王，2021 年超越 Ray Allen 登頂' },
+    basis: {
+      text: '取材自 Curry 約20分鐘、由近而遠的賽前儀式：五點各進15球、環繞三分、深位三分，最後以 tunnel shot 收尾',
+      source: 'ESPN 2018', url: 'https://www.espn.com/nba/story/_/id/22215844/steph-curry-pregame-show-anything-routine',
+    },
   },
   {
     id: 'free', name: '自由練習', player: null, playerStatus: null, tier: null,

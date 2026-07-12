@@ -327,6 +327,9 @@ function renderVariantSheetHtml(menu) {
             <span class="variant-option__meta">約 ${menu.est.full} 分・${menu.full.length} 輪・${menu.full.length * 10} 球</span>
           </button>
         </div>
+        ${menu.basis ? `
+          <p class="sheet__basis">📋 菜單依據：${menu.basis.text}<a class="sheet__basis-link" href="${menu.basis.url}" target="_blank" rel="noopener">（${menu.basis.source}）</a></p>
+        ` : ''}
         ${isChallenge ? `
           <p class="sheet__eligibility-note">誠實機制：完整版總時長需 ≥20 分、簡易版 ≥10 分，且輪與輪節奏不能過快，才會列入解鎖評估；沒達標也照樣存檔進統計。</p>
           <p class="sheet__honesty-line">挑戰靠自主誠實——這些數據是投給未來的你看的。</p>
