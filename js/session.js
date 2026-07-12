@@ -220,6 +220,24 @@ function renderPassRuleBars(detail) {
   `;
 }
 
+// 球員生涯數據列（數據與查證紀錄在 menus.js 的 career 欄位）。
+function renderCareerHtml(career) {
+  if (!career) return '';
+  const items = [
+    `NBA ${career.years}`,
+    `FG ${career.fg}%`,
+    `3分 ${career.tp}%`,
+    `罰球 ${career.ft}%`,
+    `三分 ${formatThousands(career.tpm)} 顆`,
+  ];
+  return `
+    <div class="hero-card__career">
+      ${items.map((t) => `<span class="career-stat nowrap">${t}</span>`).join('')}
+    </div>
+    <p class="hero-card__fact">${career.fact}</p>
+  `;
+}
+
 function renderHeroCard(menu, isPassed) {
   const best = state.progress.best[menu.id];
   const bestHtml = best
@@ -239,6 +257,7 @@ function renderHeroCard(menu, isPassed) {
       </div>
       <h2 class="hero-card__name">${menu.name}</h2>
       <p class="hero-card__player">${menu.player}　<span class="hero-card__status">${playerStatusLabel(menu.playerStatus)}</span></p>
+      ${renderCareerHtml(menu.career)}
       <p class="hero-card__focus">${menu.focus}</p>
       <p class="inspired-note">依公開報導風格改編的靈感版本・單人可執行</p>
       <div class="hero-card__best">個人最佳（完整版）：<strong>${bestHtml}</strong></div>

@@ -3,6 +3,13 @@
 //
 // 掛名菜單只取該球員公開報導菜單中「單人可執行」的定點投籃部分（自投自撿），
 // 描述禁用 catch & shoot 等需要傳球者的字眼；卡片小字另外標註靈感改編聲明。
+//
+// career 生涯數據查證紀錄（不得憑印象改動）：
+// 2026-07-13 以 StatMuse 與 ESPN 雙來源交叉核對一致；數據截至 2025-26 NBA
+// 常規賽（Lillard 因 2025-26 整季傷停，累計停在 2024-25；Lin 的 NBA 年份
+// 不含其後 CBA／台灣職籃年份）。fg/tp/ft 為生涯命中率 %、tpm 為生涯三分命中數。
+// 來源示例：statmuse.com/nba/player/…、espn.com/nba/player/stats/…；
+// 更新數據時必須重新雙來源核對並更新本註記日期。
 
 export const MENUS = [
   {
@@ -13,6 +20,7 @@ export const MENUS = [
     easy: ['mid_lw', 'mid_top', 'mid_rw', 'paint', 'ft', 'ft'],
     full: ['mid_lc', 'mid_lw', 'mid_top', 'mid_rw', 'mid_rc', 'paint', 'ft', 'ft', 'mid_lw', 'mid_top', 'mid_rw', 'ft'],
     est: { easy: 30, full: 60 },
+    career: { years: '2010–2019', fg: 43.3, tp: 34.2, ft: 80.9, tpm: 449, fact: '2012 年掀起「林來瘋」的傳奇後衛' },
   },
   {
     id: 'dirk', name: 'Dirk 中距大師', short: 'Dirk 中距', player: 'Dirk Nowitzki', playerStatus: 'retired', tier: 2,
@@ -22,6 +30,7 @@ export const MENUS = [
     easy: ['mid_lw', 'mid_top', 'mid_rw', 'mid_top', 'mid_top', 'ft'],
     full: ['mid_lc', 'mid_lw', 'mid_top', 'mid_rw', 'mid_rc', 'mid_top', 'mid_lw', 'mid_top', 'mid_rw', 'mid_top', 'ft', 'ft'],
     est: { easy: 30, full: 60 },
+    career: { years: '1998–2019', fg: 47.1, tp: 38.0, ft: 87.9, tpm: 1982, fact: '50-40-90 俱樂部成員，2007 年 MVP' },
   },
   {
     id: 'allen', name: 'Ray Allen 三分入門', short: 'Allen 三分', player: 'Ray Allen', playerStatus: 'retired', tier: 3,
@@ -31,6 +40,7 @@ export const MENUS = [
     easy: ['3pt_lc', '3pt_rc', '3pt_lw', '3pt_rw', '3pt_top', 'ft'],
     full: ['3pt_lc', '3pt_rc', '3pt_lw', '3pt_rw', '3pt_top', 'ft', '3pt_lc', '3pt_rc', '3pt_lw', '3pt_rw', '3pt_top', 'ft'],
     est: { easy: 30, full: 60 },
+    career: { years: '1996–2014', fg: 45.2, tp: 40.0, ft: 89.4, tpm: 2973, fact: '前史上三分王（2,973 顆），2021 年才被 Curry 超越' },
   },
   {
     id: 'klay', name: 'Klay 三分量產', short: 'Klay 量產', player: 'Klay Thompson', playerStatus: 'active', tier: 4,
@@ -40,6 +50,7 @@ export const MENUS = [
     easy: ['3pt_lc', '3pt_lw', '3pt_top', '3pt_rw', '3pt_rc', 'ft'],
     full: ['3pt_lc', '3pt_lw', '3pt_top', '3pt_rw', '3pt_rc', 'ft', '3pt_lc', '3pt_lw', '3pt_top', '3pt_rw', '3pt_rc', 'ft'],
     est: { easy: 30, full: 60 },
+    career: { years: '2011–現役', fg: 44.8, tp: 40.9, ft: 85.8, tpm: 2899, fact: '單場 14 顆三分的 NBA 紀錄保持人' },
   },
   {
     id: 'lillard', name: 'Lillard 深三專項', short: 'Lillard 深三', player: 'Damian Lillard', playerStatus: 'active', tier: 5,
@@ -49,6 +60,7 @@ export const MENUS = [
     easy: ['3pt_top', 'deep_l', 'deep_top', 'deep_r', '3pt_top', 'ft'],
     full: ['3pt_lw', '3pt_top', '3pt_rw', 'deep_l', 'deep_top', 'deep_r', '3pt_top', 'deep_l', 'deep_top', 'deep_r', 'ft', 'ft'],
     est: { easy: 30, full: 60 },
+    career: { years: '2012–現役', fg: 43.9, tp: 37.1, ft: 89.9, tpm: 2804, fact: '以「logo shot」超遠三分聞名' },
   },
   {
     id: 'curry', name: 'Curry 終極試煉', short: 'Curry 試煉', player: 'Stephen Curry', playerStatus: 'active', tier: 6,
@@ -58,6 +70,7 @@ export const MENUS = [
     easy: ['3pt_lc', '3pt_top', '3pt_rc', 'deep_top', 'ft', '3pt_lw'],
     full: ['3pt_lc', '3pt_lw', '3pt_top', '3pt_rw', '3pt_rc', 'deep_l', 'deep_top', 'deep_r', '3pt_top', 'deep_top', 'ft', 'ft'],
     est: { easy: 30, full: 60 },
+    career: { years: '2009–現役', fg: 47.1, tp: 42.2, ft: 91.2, tpm: 4248, fact: '史上三分王，2021 年超越 Ray Allen 登頂' },
   },
   {
     id: 'free', name: '自由練習', player: null, playerStatus: null, tier: null,
