@@ -591,7 +591,6 @@ function renderActive() {
     </div>
   `;
 
-  const attemptsOptions = Array.from({ length: attemptsForRound + 1 }, (_, n) => n);
   const roundInputBody = inputMode === 'seq'
     ? `
       ${renderSeqBallsHtml(pendingSeq, 'toggle-seq')}
@@ -600,9 +599,7 @@ function renderActive() {
     `
     : `
       <p class="round-input__question">這輪進幾顆？</p>
-      <div class="makes-grid">
-        ${attemptsOptions.map((n) => `<button class="makes-btn" data-action="confirm-makes:${n}" ${!pendingType ? 'disabled' : ''}>${n}</button>`).join('')}
-      </div>
+      ${makesGridHtml(attemptsForRound, (n, spanAttr) => `<button class="makes-btn" data-action="confirm-makes:${n}" ${!pendingType ? 'disabled' : ''}${spanAttr}>${n}</button>`)}
     `;
 
   const roundInputHtml = `
@@ -716,18 +713,27 @@ function renderEditRoundHtml() {
     `;
   }
 
-  const options = Array.from({ length: r.attempts + 1 }, (_, i) => i);
   return `
     <div class="sheet-backdrop" data-action="close-edit">
       <div class="sheet">
         <h3 class="sheet__title">修改第 ${editingRoundIndex + 1} 輪</h3>
         <p class="sheet__sub">${spotLabel}，原本 ${r.makes}/${r.attempts}，改成進幾顆？</p>
-        <div class="makes-grid">
-          ${options.map((n) => `<button class="makes-btn ${n === r.makes ? 'is-active' : ''}" data-action="save-edit-makes:${n}">${n}</button>`).join('')}
-        </div>
+        ${makesGridHtml(r.attempts, (n, spanAttr) => `<button class="makes-btn ${n === r.makes ? 'is-active' : ''}" data-action="save-edit-makes:${n}"${spanAttr}>${n}</button>`)}
       </div>
     </div>
   `;
+}
+
+// 0–attempts 的數字按鈕網格（6 欄）。最後一顆按鈕跨欄補滿列尾，
+// 避免像「10」單獨掛在最後一行的孤立排版。
+function makesGridHtml(attempts, btnHtml) {
+  const count = attempts + 1;
+  const cols = 6;
+  const span = cols - ((count - 1) % cols);
+  const buttons = Array.from({ length: count }, (_, n) =>
+    btnHtml(n, n === attempts && span > 1 ? ` style="grid-column: span ${span}"` : '')
+  ).join('');
+  return `<div class="makes-grid">${buttons}</div>`;
 }
 
 function pickSpot(id) {
