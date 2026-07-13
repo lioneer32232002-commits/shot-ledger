@@ -242,9 +242,8 @@ function drawMiniCourt(ctx, heatSpots, ox, oy, scale, lineColor = COLORS.courtLi
   ctx.stroke();
 
   // 出手點位：僅畫該節有出手的點，顏色同熱區三級；點內畫命中率%（canvas 版空間較小，只畫 %）。
-  // r 20→26；字 18→24（乘 scale ≈1.2 後實際約 29px），呼應 court.js 熱區點貫穿字（SPEC
-  // M4.3 §2）：允許超出點的圓邊，加同款深色描邊（strokeText 疊在 fillText 下面）避免
-  // 突出的部分壓在球場線上看不清。
+  // 呼應 court.js 熱區點的貫穿字（SPEC M4.3 §2→M4.4 §3）：允許超出點的圓邊，
+  // 純白 fillText、無描邊。
   heatSpots.forEach((s) => {
     ctx.beginPath();
     ctx.fillStyle = heatTierColor(s.pct);
@@ -252,16 +251,36 @@ function drawMiniCourt(ctx, heatSpots, ox, oy, scale, lineColor = COLORS.courtLi
     ctx.fill();
 
     if (s.pct !== null) {
+      // 24→34（SVG 座標，SPEC M4.4 §3）：與 App 全期熱區字（court.js .spot-heat-pct
+      // font-size 34px／750 寬 viewBox＝球場寬 4.5%）同一相對比例，卡上原本 24
+      // 只有 3.2%，偏小的根源。描邊全部移除（使用者指定嘗試無描邊版，與 App
+      // 端 .spot-heat-pct 同步拿掉 stroke／paint-order）：純白字直接壓在點上。
       const pctText = `${s.pct}%`;
-      ctx.font = `800 ${24 * scale}px ${FONT_FAMILY}`;
-      ctx.textAlign = 'center';
+      ctx.font = `800 ${34 * scale}px ${FONT_FAMILY}`;
       ctx.textBaseline = 'middle';
-      ctx.lineJoin = 'round';
-      ctx.lineWidth = 3 * scale;
-      ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
-      ctx.strokeText(pctText, tx(s.cx), ty(s.cy));
       ctx.fillStyle = '#fff';
-      ctx.fillText(pctText, tx(s.cx), ty(s.cy));
+
+      // 左右底角（3pt_lc cx=45／3pt_rc cx=705）字放大後貫穿圓點，最寬情境「100%」
+      // 可能突破 viewBox 邊界；量寬度後若真的超出才把錨點從置中改成點緣
+      // left/right（往內收），其餘點離邊界夠遠，這個檢查天然不影響它們。EDGE_SAFETY
+      // 6px：實測「100%」在兩個底角置中時離邊界只剩約1.4px（幾乎貼邊、字型
+      // 渲染稍有差異就可能真的超出），加緩衝讓判斷提前觸發、留真正的安全距離。
+      const EDGE_SAFETY = 6;
+      const textW = ctx.measureText(pctText).width;
+      const centerX = tx(s.cx);
+      const leftEdge = tx(0);
+      const rightEdge = tx(750);
+      let drawX = centerX;
+      let align = 'center';
+      if (centerX - textW / 2 < leftEdge + EDGE_SAFETY) {
+        align = 'left';
+        drawX = centerX - 26 * scale;
+      } else if (centerX + textW / 2 > rightEdge - EDGE_SAFETY) {
+        align = 'right';
+        drawX = centerX + 26 * scale;
+      }
+      ctx.textAlign = align;
+      ctx.fillText(pctText, drawX, ty(s.cy));
     }
   });
 
@@ -336,14 +355,20 @@ export function drawCard(canvas, data, opts = {}) {
   //   ────────────────────── ─────────────────── ───────────────
   //   品牌列（圖示＋文字）      ~44px               34px
   //   菜單名                  ≤58px（依字級）       30px
-  //   主數字＋投中行            ~150～160px          40px  ← 見下方特別說明
-  //   球種列（1～2 列）         每列 ~46px           40px
+  //   主數字＋球種列（合併帶）   max(左欄實高,        40px
+  //     左欄＝57%大字＋投中行     右欄行數×行距)
+  //     右欄＝球種一行一種
+  //     （最多4行）
   //   迷你球場                 78～83% 卡寬換算       40px
   //   狀態徽章（可選 0～2 枚）   56px                 34px
   //   網址                    固定貼底 CARD_H-56（前面留夠淨空即可，不參與游標）
   //
-  //   「主數字＋投中行」的 40px gap 疊加球種列首行的 ascent，實測後投中 baseline
-  //   到球種列首行 baseline 差 ≥56px（本輪驗收要求，見自驗記錄）。
+  //   SPEC M4.4 §1：主數字區與球種列合併為同一水平帶、左右兩欄，不再橫排擠在
+  //   一起。左欄＝57%超大字（150px 不變）＋正下方投中比數（小字、同左對齊）；
+  //   右欄＝球種一行一種、最多4行、三欄固定錨點跨行對齊（label左/count右/pct
+  //   右），x 起點用「100%」最寬情境算死，不隨百分比位數浮動。兩欄共用同一個
+  //   游標 y 當頂緣（天然頂對齊，球種 1～2 種時右欄變短也不置中）；整帶高度＝
+  //   max(左欄實高, 右欄行數×行距)，取兩者較大值往下推進游標。
   const marginX = 76;
   let y = 100;
 
@@ -380,20 +405,24 @@ export function drawCard(canvas, data, opts = {}) {
   ctx.fillText(menuLine, marginX, menuBaselineY);
   y = menuBaselineY + menuMetrics.desc + 30;
 
-  // 3. 主數字：總命中率超大字＋投中比數（同一 baseline）。
-  // 照片模式加柔和深色投影，橘字壓在亮部照片上也讀得清；畫完立刻重置 shadow 免得污染後續繪製。
+  // 3. 主數字＋球種列合併帶：左欄（57%大字＋正下方投中比數）／右欄（球種
+  // 直排，一行一種，SPEC M4.4 §1）。兩欄共用同一個 bandTop 當頂緣，各自往下
+  // 推進，最後取兩欄實高較大值決定這一整帶的高度。
+  const bandTop = y;
+
+  // 3a. 左欄：總命中率超大字（150px 不變）＋正下方投中比數（小字、同左對齊，
+  // 不再擠在大字右側）。照片模式加柔和深色投影，橘字壓在亮部照片上也讀得清；
+  // 畫完立刻重置 shadow 免得污染後續繪製。
   const pctLabel = data.totalPct === null ? '—' : `${data.totalPct}%`;
   const pctFont = `800 150px ${FONT_FAMILY}`;
   const detailLabel = `${data.totalMk}/${data.totalAtt} 投中`;
+  const detailSize = fitFontSize(ctx, detailLabel, CARD_W - marginX * 2, 34, 700);
+  const detailFont = `700 ${detailSize}px ${FONT_FAMILY}`;
 
   const pctMetrics = measureAscDesc(ctx, pctLabel, pctFont);
-  const pctWidth = ctx.measureText(pctLabel).width;
-  const detailX = marginX + pctWidth + 28;
-  const detailSize = fitFontSize(ctx, detailLabel, CARD_W - marginX - detailX, 34, 700);
-  const detailFont = `700 ${detailSize}px ${FONT_FAMILY}`;
   const detailMetrics = measureAscDesc(ctx, detailLabel, detailFont);
 
-  const bigNumBaselineY = y + Math.max(pctMetrics.asc, detailMetrics.asc);
+  const bigNumBaselineY = bandTop + pctMetrics.asc;
 
   if (palette.pctShadow) {
     ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
@@ -410,30 +439,33 @@ export function drawCard(canvas, data, opts = {}) {
     ctx.shadowOffsetX = 0;
     ctx.shadowOffsetY = 0;
   }
+
+  const GAP_PCT_TO_DETAIL = 22;
+  const detailBaselineY = bigNumBaselineY + pctMetrics.desc + GAP_PCT_TO_DETAIL + detailMetrics.asc;
   ctx.fillStyle = palette.muted;
   ctx.font = detailFont;
-  ctx.fillText(detailLabel, detailX, bigNumBaselineY);
+  ctx.fillText(detailLabel, marginX, detailBaselineY);
 
-  y = bigNumBaselineY + Math.max(pctMetrics.desc, detailMetrics.desc) + 40;
+  const leftColBottom = detailBaselineY + detailMetrics.desc;
 
-  // 4. 球種列：兩欄固定寬錨點，不撐滿欄寬（SPEC M4.3 §3b）。label 靠左（欄 x）、
-  // count 右對齊在欄 x+230、pct 右對齊在欄 x+360，兩欄位間至少留 24px；
-  // 兩欄 grid 欄距固定 60px，整組靠左（marginX 起），右側自然留白。
-  const typeColGap = 60;
-  const typeColAnchorCount = 230; // count 右緣＝欄x+230
-  const typeColAnchorPct = 360; // pct 右緣＝欄x+360（與最寬 count「50/90」實測仍留 ≥24px）
-  const typeRowFont32 = `700 32px ${FONT_FAMILY}`;
-  const typeRowRef = measureAscDesc(ctx, '深 3', typeRowFont32); // 代表性 CJK 字高，決定列距
-  // +20（非 14）：不同字元的實際 ascent/descent 跟參考字「深 3」略有出入，
-  // 實測兩列間純背景帶一度只有 13px，加大緩衝確保 ≥16px（驗收必檢 #1）。
+  // 3b. 右欄：球種一行一種、最多4行（TYPE_OPTIONS 上限），三欄固定錨點跨行
+  // 對齊（label 左對齊欄 x／count 右對齊欄 x+170／pct 右對齊欄 x+280，
+  // 「深3 50/90 56%」實測欄寬微調）。x 起點用 pctFont 畫「100%」的最寬情境
+  // 算死＋40px，不隨總命中率百分比位數浮動，卡與卡之間右欄位置穩定。
+  ctx.font = pctFont;
+  const widestPctW = ctx.measureText('100%').width;
+  const rightColX = marginX + widestPctW + 40;
+  const typeColAnchorCount = 170; // count 右緣＝rightColX+170
+  const typeColAnchorPct = 280; // pct 右緣＝rightColX+280
+  const typeRowFontBase = `700 30px ${FONT_FAMILY}`;
+  const typeRowRef = measureAscDesc(ctx, '深 3', typeRowFontBase); // 代表性 CJK 字高，決定列距
+  // 目標行距約44（SPEC M4.4 §1）；+20 的緩衝值以實畫掃描結果為準（見自驗記錄：
+  // +14 時實測相鄰行純背景帶只有 13～14px，加大到 +20 才穩定 ≥16px，驗收必檢 #1）。
   const typeRowPitch = Math.ceil(typeRowRef.asc + typeRowRef.desc) + 20;
-  const typeFirstBaseline = y + typeRowRef.asc;
+  const typeFirstBaseline = bandTop + typeRowRef.asc;
 
   data.typeRows.forEach((row, i) => {
-    const col = i % 2;
-    const rowIdx = Math.floor(i / 2);
-    const colX = marginX + col * (typeColAnchorPct + typeColGap);
-    const rowBaseline = typeFirstBaseline + rowIdx * typeRowPitch;
+    const rowBaseline = typeFirstBaseline + i * typeRowPitch;
     const countLabel = `${row.mk}/${row.att}`;
     const pctLabelTxt = row.pct === null ? '—' : `${row.pct}%`;
 
@@ -441,28 +473,30 @@ export function drawCard(canvas, data, opts = {}) {
     const labelMaxW = typeColAnchorCount - 24;
     const countMaxW = typeColAnchorPct - 24 - typeColAnchorCount;
     const size = Math.min(
-      fitFontSize(ctx, row.label, labelMaxW, 32, 700),
-      fitFontSize(ctx, countLabel, countMaxW, 32, 700)
+      fitFontSize(ctx, row.label, labelMaxW, 30, 700),
+      fitFontSize(ctx, countLabel, countMaxW, 30, 700)
     );
     ctx.font = `700 ${size}px ${FONT_FAMILY}`;
     ctx.fillStyle = palette.text;
 
     ctx.textAlign = 'left';
-    ctx.fillText(row.label, colX, rowBaseline);
+    ctx.fillText(row.label, rightColX, rowBaseline);
 
     ctx.textAlign = 'right';
-    ctx.fillText(countLabel, colX + typeColAnchorCount, rowBaseline);
-    ctx.fillText(pctLabelTxt, colX + typeColAnchorPct, rowBaseline);
+    ctx.fillText(countLabel, rightColX + typeColAnchorCount, rowBaseline);
+    ctx.fillText(pctLabelTxt, rightColX + typeColAnchorPct, rowBaseline);
   });
   ctx.textAlign = 'left';
 
-  const typeRowCount = Math.max(1, Math.ceil(data.typeRows.length / 2));
-  const typeBlockBottom = data.typeRows.length
-    ? typeFirstBaseline + (typeRowCount - 1) * typeRowPitch + typeRowRef.desc
-    : y;
-  y = typeBlockBottom + 40;
+  const rightColBottom = data.typeRows.length
+    ? typeFirstBaseline + (data.typeRows.length - 1) * typeRowPitch + typeRowRef.desc
+    : bandTop;
 
-  // 5. 迷你半場熱區圖：預設 83% 卡寬，若下方（徽章／網址）空間不夠就縮到 78–80%——
+  // 整帶高度＝兩欄實高較大值；球種只有 1～2 種時右欄自然變短，兩欄都從同一個
+  // bandTop 頂對齊起筆，不置中。
+  y = Math.max(leftColBottom, rightColBottom) + 40;
+
+  // 4. 迷你半場熱區圖：預設 83% 卡寬，若下方（徽章／網址）空間不夠就縮到 78–80%——
   // 寧可球場小一點，不准跟下面內容重疊（SPEC §3a 最壞情境：4 球種＋2 徽章＋照片模式）。
   const badges = [];
   if (data.achieved) badges.push('挑戰達成 ✓');
@@ -493,7 +527,7 @@ export function drawCard(canvas, data, opts = {}) {
   drawMiniCourt(ctx, data.heatSpots, courtX, y, scale, palette.courtLine);
   y += courtH + GAP_COURT_TO_NEXT;
 
-  // 6. 狀態列（有才顯示，最多兩枚扁平徽章）
+  // 5. 狀態列（有才顯示，最多兩枚扁平徽章）
   if (badges.length) {
     let bx = marginX;
     ctx.font = `${palette.badgeWeight} 28px ${FONT_FAMILY}`;
@@ -509,7 +543,7 @@ export function drawCard(canvas, data, opts = {}) {
     y += BADGE_ROW_H + GAP_BADGES_TO_URL;
   }
 
-  // 7. 底部：網址（小字置中，固定貼底；上面各段落已依游標預留足夠淨空，不會相撞）
+  // 6. 底部：網址（小字置中，固定貼底；上面各段落已依游標預留足夠淨空，不會相撞）
   ctx.textAlign = 'center';
   ctx.fillStyle = palette.muted;
   ctx.font = `600 24px ${FONT_FAMILY}`;
@@ -558,6 +592,12 @@ export function openShareSheet(session, state) {
   let blob = null;
   let file = null;
 
+  // 按鈕層級重整（SPEC M4.4 §2）：全寬主鈕最多一顆。裝置支援分享 API 時，
+  // 「分享」是唯一全寬主鈕，「下載 PNG」降級成次要鈕跟「關閉」一列兩顆半寬；
+  // 不支援分享 API（多半是桌面瀏覽器）時，「分享」整顆隱藏，「下載 PNG」升級
+  // 成唯一全寬主鈕，「關閉」單獨半寬置中留在原本那一列。
+  // 「用自己的照片當背景」與「移除照片」固定是一列兩顆半寬的次要鈕；未選照片
+  // 時「移除照片」隱藏、照片鈕單顆半寬置中（不拉滿）。
   const backdrop = document.createElement('div');
   backdrop.className = 'sheet-backdrop share-sheet-backdrop';
   backdrop.innerHTML = `
@@ -566,17 +606,19 @@ export function openShareSheet(session, state) {
       <div class="share-sheet__preview">
         <img alt="成績分享卡預覽" />
       </div>
-      <div class="share-sheet__photo-actions">
-        <label class="btn btn--secondary share-sheet__photo-btn">
+      <div class="share-sheet__row share-sheet__photo-row" data-row="photo">
+        <label class="btn btn--secondary share-sheet__half share-sheet__photo-btn">
           用自己的照片當背景
           <input type="file" accept="image/*" class="visually-hidden" data-action="pick-photo" />
         </label>
-        <button class="btn btn--ghost" data-action="remove-photo" hidden>移除照片</button>
+        <button class="btn btn--ghost share-sheet__half" data-action="remove-photo" hidden>移除照片</button>
       </div>
-      <div class="share-sheet__actions">
-        <button class="btn btn--primary" data-action="share-card" hidden>分享</button>
-        <button class="btn btn--secondary" data-action="download-card">下載 PNG</button>
-        <button class="btn btn--ghost" data-action="close-share">關閉</button>
+      <div class="share-sheet__row share-sheet__primary-row" data-row="primary">
+        <button class="btn btn--primary share-sheet__full" data-action="share-card" hidden>分享</button>
+      </div>
+      <div class="share-sheet__row share-sheet__secondary-row" data-row="secondary">
+        <button class="btn btn--secondary share-sheet__half" data-action="download-card">下載 PNG</button>
+        <button class="btn btn--ghost share-sheet__half" data-action="close-share">關閉</button>
       </div>
     </div>
   `;
@@ -588,8 +630,36 @@ export function openShareSheet(session, state) {
   const shareBtn = backdrop.querySelector('[data-action="share-card"]');
   const downloadBtn = backdrop.querySelector('[data-action="download-card"]');
   const closeBtn = backdrop.querySelector('[data-action="close-share"]');
+  const photoRow = backdrop.querySelector('[data-row="photo"]');
+  const primaryRow = backdrop.querySelector('[data-row="primary"]');
+  const secondaryRow = backdrop.querySelector('[data-row="secondary"]');
 
-  /** 畫完卡片後，重建 dataUrl/blob/File 並同步預覽圖與分享鈕可見性。 */
+  /** 照片列單顆／兩顆的置中收半寬切換（未選照片時移除鈕隱藏）。 */
+  function syncPhotoRow() {
+    photoRow.classList.toggle('share-sheet__row--single', removePhotoBtn.hidden);
+  }
+
+  /**
+   * 分享／下載鈕的主次互換：有分享 API 就分享當全寬主鈕、下載退回次要鈕跟
+   * 關閉並排；沒有就把下載鈕整個搬進主鈕列頂替（DOM 節點搬移，事件監聽器
+   * 本來就綁在同一個元素上，不必重新綁定），關閉鈕留在次要列變成單顆半寬。
+   */
+  function syncActionRows(canShare) {
+    shareBtn.hidden = !canShare;
+    if (canShare) {
+      downloadBtn.classList.remove('btn--primary', 'share-sheet__full');
+      downloadBtn.classList.add('btn--secondary', 'share-sheet__half');
+      secondaryRow.insertBefore(downloadBtn, closeBtn);
+      secondaryRow.classList.remove('share-sheet__row--single');
+    } else {
+      downloadBtn.classList.remove('btn--secondary', 'share-sheet__half');
+      downloadBtn.classList.add('btn--primary', 'share-sheet__full');
+      primaryRow.appendChild(downloadBtn);
+      secondaryRow.classList.add('share-sheet__row--single');
+    }
+  }
+
+  /** 畫完卡片後，重建 dataUrl/blob/File 並同步預覽圖與分享／下載鈕的主次層級。 */
   function refreshOutputs() {
     dataUrl = canvas.toDataURL('image/png');
     blob = dataURLToBlob(dataUrl);
@@ -599,7 +669,8 @@ export function openShareSheet(session, state) {
     } catch (err) {
       file = null; // 極少數不支援 File 建構子的環境，僅隱藏分享鈕即可
     }
-    shareBtn.hidden = !(file && navigator.canShare && navigator.canShare({ files: [file] }));
+    const canShare = !!(file && navigator.canShare && navigator.canShare({ files: [file] }));
+    syncActionRows(canShare);
   }
 
   function render() {
@@ -607,6 +678,7 @@ export function openShareSheet(session, state) {
     refreshOutputs();
   }
 
+  syncPhotoRow();
   render();
 
   photoInput.addEventListener('change', () => {
@@ -617,6 +689,7 @@ export function openShareSheet(session, state) {
     img.onload = () => {
       photoImg = img;
       removePhotoBtn.hidden = false;
+      syncPhotoRow();
       render();
       URL.revokeObjectURL(objectUrl);
     };
@@ -630,6 +703,7 @@ export function openShareSheet(session, state) {
     photoImg = null;
     removePhotoBtn.hidden = true;
     photoInput.value = '';
+    syncPhotoRow();
     render();
   });
 

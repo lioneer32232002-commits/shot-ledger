@@ -95,6 +95,12 @@ a {
   white-space: nowrap;
 }
 
+/* HTML hidden 屬性必須永遠贏：任何帶 display 的 class（如 .btn 的
+   inline-flex）都會蓋掉 UA 樣式表的 [hidden]，這裡拉回來。 */
+[hidden] {
+  display: none !important;
+}
+
 /* 數字一律等寬，避免練球時數字跳動 */
 .today-summary__value,
 .today-summary__pct,
@@ -715,17 +721,13 @@ a {
 /* 熱區命中率字貫穿圓點（SPEC M4.3 §2）：字置中在點上，刻意允許左右突破圓的
    邊緣做出「貫穿感」，不再用縮字級（--tight）閃避撐爆點的圓框。SVG viewBox
    750 寬，手機上整顆球場常縮到約 340px（比例 0.46），34px 才能讓實際顯示
-   字高（約 15.5px）留在可讀範圍。paint-order:stroke 加一圈深色細描邊，
-   讓超出圓的部分壓在球場線／深色熱區上也讀得清。 */
+   字高（約 15.5px）留在可讀範圍。描邊全部移除（SPEC M4.4 §3，使用者指定嘗試
+   無描邊版）：純白字直接壓在點上，與分享卡 drawMiniCourt 同步。 */
 .spot-heat-pct {
   font-size: 34px;
   font-weight: 800;
   fill: #fff;
   pointer-events: none;
-  paint-order: stroke;
-  stroke: rgba(0, 0, 0, 0.35);
-  stroke-width: 3px;
-  stroke-linejoin: round;
 }
 
 /* heat 模式的點擊資訊列：court.js 在 container 內 svg 後面自己加這個 div，
@@ -2904,24 +2906,36 @@ a {
   object-fit: contain;
 }
 
-/* 自訂照片背景：選圖／移除照片（§8） */
-.share-sheet__photo-actions {
+/* 按鈕層級重整（SPEC M4.4 §2）：全寬主鈕最多一顆，其餘半寬並排分層。
+   三列固定順序：照片列（半寬×2）／主鈕列（全寬×1）／次要列（半寬×2）；
+   openShareSheet 只切換 hidden 屬性＋class，DOM 結構本身不變。 */
+.share-sheet__row {
   display: flex;
   gap: var(--space-2);
+}
+
+.share-sheet__row .btn {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 單顆時不拉滿：置中、限制在半寬左右（未選照片時的照片鈕、無分享 API 時的
+   關閉鈕都走這個模式），避免長鈕孤零零撐滿整列。 */
+.share-sheet__row--single {
+  justify-content: center;
+}
+
+.share-sheet__row--single .btn {
+  flex: 0 1 auto;
+  min-width: 50%;
+  max-width: 80%;
 }
 
 .share-sheet__photo-btn {
-  flex: 1;
   cursor: pointer;
 }
 
-.share-sheet__actions {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.share-sheet__actions .btn {
+.share-sheet__full {
   width: 100%;
 }
 
