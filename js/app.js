@@ -5,11 +5,66 @@ import * as store from './store.js';
 import * as trainPage from './session.js';
 import * as statsPage from './statspage.js';
 import * as historyPage from './history.js';
-import { ladderMenus } from './menus.js';
+import { MENUS, ladderMenus } from './menus.js';
 import { BADGE_LABEL, formatThousands } from './session.js';
 import { lifetimeTotals, pct } from './stats.js';
 
 const VALID_TABS = ['train', 'stats', 'history', 'settings'];
+
+// ---------------------------------------------------------------------------
+// 深色模式（schema v4 settings.theme：'auto'|'light'|'dark'）
+// ---------------------------------------------------------------------------
+
+const THEME_COLOR = { light: '#FAF9F7', dark: '#16130F' };
+const darkMediaQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+let systemThemeListenerOn = false;
+
+function onSystemThemeChange() {
+  applyTheme();
+}
+
+/** 有效主題：手動指定 light/dark 就直接用，'auto' 時看系統目前是否偏好深色。 */
+function effectiveTheme(theme) {
+  if (theme === 'light' || theme === 'dark') return theme;
+  return darkMediaQuery && darkMediaQuery.matches ? 'dark' : 'light';
+}
+
+/** 套用目前 settings.theme：寫入 <html data-theme>、同步 theme-color meta，
+ *  並在 'auto' 時即時跟隨系統深色切換（手動指定時移除監聽，避免多餘更新）。 */
+function applyTheme() {
+  const state = store.load();
+  const theme = state.settings.theme;
+  const effective = effectiveTheme(theme);
+
+  document.documentElement.dataset.theme = effective;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', THEME_COLOR[effective]);
+
+  if (darkMediaQuery) {
+    if (theme === 'auto' && !systemThemeListenerOn) {
+      darkMediaQuery.addEventListener('change', onSystemThemeChange);
+      systemThemeListenerOn = true;
+    } else if (theme !== 'auto' && systemThemeListenerOn) {
+      darkMediaQuery.removeEventListener('change', onSystemThemeChange);
+      systemThemeListenerOn = false;
+    }
+  }
+}
+
+// 首次 render 前就套用，避免深色使用者先閃一下淺色殼。
+applyTheme();
+
+// ---------------------------------------------------------------------------
+// PWA：Service Worker 註冊（失敗靜默，不影響一般瀏覽器使用）
+// ---------------------------------------------------------------------------
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {
+      // 註冊失敗（例如非 https / 瀏覽器不支援）不影響一般網頁功能，靜默即可
+    });
+  });
+}
 
 const settingsPage = { mount: mountSettings, unmount: unmountSettings };
 const routes = { train: trainPage, stats: statsPage, history: historyPage, settings: settingsPage };
@@ -50,14 +105,6 @@ function render() {
   updateTabBar(tab);
   currentModule = routes[tab];
   currentModule.mount(view);
-}
-
-window.addEventListener('hashchange', render);
-
-if (!location.hash) {
-  location.hash = '#/train';
-} else {
-  render();
 }
 
 // ---------------------------------------------------------------------------
@@ -119,9 +166,36 @@ function renderSettings() {
     ? `<div class="badge-chips">${badges.map((b) => `<span class="badge-chip">${BADGE_LABEL[b] || b}</span>`).join('')}</div>`
     : `<p class="settings-card__row">尚未獲得徽章，練起來！</p>`;
 
+  const theme = settingsState.settings.theme;
+  const themeOptions = [
+    { id: 'auto', label: '自動' },
+    { id: 'light', label: '淺色' },
+    { id: 'dark', label: '深色' },
+  ];
+  const themeSegmentedHtml = themeOptions
+    .map((opt) => `<button class="segmented__btn${theme === opt.id ? ' is-active' : ''}" data-theme-option="${opt.id}">${opt.label}</button>`)
+    .join('');
+
+  const basisMenus = MENUS.filter((m) => m.basis);
+  const basisListHtml = basisMenus
+    .map(
+      (m) => `
+        <li class="basis-item">
+          <p class="basis-item__name">${m.name}</p>
+          <p class="basis-item__text">${m.basis.text}（<a href="${m.basis.url}" target="_blank" rel="noopener">${m.basis.source}</a>）</p>
+        </li>
+      `
+    )
+    .join('');
+
   settingsRoot.innerHTML = `
     <div class="page page--settings">
       <header class="page-header"><h1>設定</h1></header>
+
+      <section class="settings-card">
+        <h2 class="settings-card__title">外觀</h2>
+        <div class="segmented" data-role="theme-segmented">${themeSegmentedHtml}</div>
+      </section>
 
       <section class="settings-card">
         <h2 class="settings-card__title">資料狀態</h2>
@@ -171,11 +245,26 @@ function renderSettings() {
         </div>
       </details>
 
+      <details class="about-card">
+        <summary class="about-card__summary">掛名菜單依據與出處</summary>
+        <div class="about-card__body">
+          <ul class="basis-list">${basisListHtml}</ul>
+        </div>
+      </details>
+
       <footer class="settings-footer">
-        <p class="settings-footer__app">Shot Ledger　版本 M2</p>
+        <p class="settings-footer__app">Shot Ledger　版本 M3</p>
       </footer>
     </div>
   `;
+
+  settingsRoot.querySelectorAll('[data-role="theme-segmented"] .segmented__btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      store.setTheme(settingsState, btn.dataset.themeOption);
+      applyTheme();
+      renderSettings();
+    });
+  });
 
   importInputEl = settingsRoot.querySelector('[data-role="import-input"]');
 
@@ -243,4 +332,19 @@ function showSettingsMessage(msg) {
   box.textContent = msg;
   clearTimeout(showSettingsMessage._t);
   showSettingsMessage._t = setTimeout(() => box.remove(), 3000);
+}
+
+// ---------------------------------------------------------------------------
+// 啟動路由
+// ---------------------------------------------------------------------------
+// 放在檔案最後（設定分頁的 let 宣告之後）才啟動：若網址已帶有 hash（例如
+// 在設定分頁整頁重新整理），render() 會同步執行到 mountSettings，若這段
+// 放在 settingsRoot 等 let 宣告「之前」，會踩到 TDZ 丟出
+// ReferenceError（reload 到 #/settings 會整頁空白）。
+window.addEventListener('hashchange', render);
+
+if (!location.hash) {
+  location.hash = '#/train';
+} else {
+  render();
 }

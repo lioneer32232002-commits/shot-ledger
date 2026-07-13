@@ -11,6 +11,7 @@ const CARD_W = 1080;
 const CARD_H = 1350;
 
 // 卡片專用色票：與 tokens.css 同值的字面 hex（canvas 內規格允許例外）。
+// 分享卡是紙感設計，固定亮色輸出，不隨 App 深色模式變色（M3 SPEC §0.4）。
 const COLORS = {
   bg: '#FAF9F7',
   text: '#2B2A28',

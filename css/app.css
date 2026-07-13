@@ -203,6 +203,11 @@ a {
   border-top: 1px solid var(--color-border);
 }
 
+/* 深色：毛玻璃底色改跟隨暖黑背景（#16130F），否則會在暗色頁面上留一條半透明亮塊 */
+:root[data-theme="dark"] .tab-bar {
+  background: rgba(22, 19, 15, 0.92);
+}
+
 .tab-bar > .tab-item {
   flex: 1;
   max-width: 140px;
@@ -854,6 +859,14 @@ a {
   transform: translate(-50%, 0);
 }
 
+/* 深色：toast 背景直接沿用 --color-text 在深色主題下會變亮色，白字會讀不到，
+   改用比 surface 更淺一階的底＋一般文字色，維持「浮起的提示條」感 */
+:root[data-theme="dark"] .toast {
+  background: var(--color-surface-sunken);
+  color: var(--color-text);
+  border: 1px solid var(--color-border-strong);
+}
+
 /* ---------------------------------------------------------------------- */
 /* 本節統計（練球結束頁 / 紀錄詳情共用）                                     */
 /* ---------------------------------------------------------------------- */
@@ -1161,11 +1174,13 @@ a {
 
 .settings-clear-row {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-2);
 }
 
 .text-input {
   flex: 1;
+  min-width: 0;
   min-height: var(--touch-min);
   padding: 0 var(--space-4);
   border-radius: var(--radius-md);
@@ -2205,6 +2220,26 @@ a {
 .about-card__note {
   font-size: var(--text-xs);
   color: var(--color-text-faint);
+}
+
+/* 掛名菜單依據與出處（M3）：每一關一個區塊，名稱＋依據文字＋出處連結 */
+.basis-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.basis-item__name {
+  font-weight: 800;
+  color: var(--color-text);
+  font-size: var(--text-sm);
+}
+
+.basis-item__text {
+  margin-top: 2px;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  text-wrap: pretty;
 }
 
 /* ---------------------------------------------------------------------- */

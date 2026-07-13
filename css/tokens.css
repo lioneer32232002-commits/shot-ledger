@@ -88,3 +88,43 @@
     --transition-med: 1ms;
   }
 }
+
+/* ---------------------------------------------------------------------- */
+/* 深色模式：由 js/app.js 的 applyTheme() 寫入 document.documentElement       */
+/* 的 data-theme 屬性套用。--color-night 系列（夜幕面板）與                    */
+/* --color-text-on-accent / --color-accent-contrast 兩色不變，                */
+/* 兩種主題下都成立，故不在此覆寫。                                          */
+/* ---------------------------------------------------------------------- */
+
+:root[data-theme="dark"] {
+  --color-accent: #F2691D;
+  --color-accent-dark: #E8590C;
+  --color-accent-tint: #3A2417;
+
+  --color-bg: #16130F;
+  --color-surface: #201B16;
+  --color-surface-sunken: #2A241E;
+  --color-border: #3A322A;
+  --color-border-strong: #4A4036;
+
+  --color-text: #F2EDE5;
+  --color-text-muted: #B3A793;
+  --color-text-faint: #857A6A;
+
+  --color-success: #4CC38A;
+  --color-success-tint: #143327;
+  --color-danger: #E5695B;
+  --color-danger-tint: #3A1F1B;
+
+  --color-court-line: #4A4036;
+  --color-spot-idle: #5A5142;
+
+  --color-heat-none: #3A342C;
+  --color-heat-cold: #4C8FC9;
+  --color-heat-warm: #E3A72E;
+  --color-heat-hot: #F2691D;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 12px 36px rgba(0, 0, 0, 0.55);
+}
