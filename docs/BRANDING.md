@@ -16,44 +16,52 @@
 
 ## 2. favicon（不用 AI，程式內做）
 
-手刻扁平 SVG：暖米白圓底＋籃球橘圓球＋深炭兩道弧線（籃球紋極簡化），
-輸出 inline data URI＋`assets/favicon.svg`。M1.5 收尾時做。
+手刻扁平 SVG（2026-07-13 極簡化改版）：籃球橘圓球＋**暖米白**線條
+（一道橫線＋左右兩道弧線，捨棄中央直線），粗線條（stroke 5.5/64）
+確保 16px 下不糊。inline data URI 直接放 index.html。
+使用者回饋依據：舊版深炭細線 ×4 組在小尺寸下發暗顯髒。
 
 ## 3. OG 圖規格
 
 - 尺寸 **1200×630 px**（og:image 標準），存 `assets/og.png`（<300KB）。
 - 構圖需求：**左側或上方留乾淨負空間**放標題字（標題由我們後製疊字，
   生成圖本身**不要有任何文字**——AI 生字容易爛）。
-- 情境：黃昏戶外球場，單人跳投，球劃出弧線飛向籃框——對應 App 的
-  「一個人練球」核心情境。
+- 情境（2026-07-13 依使用者定案改版）：**插畫剪影風、鏡頭在球員背後、
+  望向籃框的縱深構圖**——背影剪影＋出手 follow-through、球在弧線頂點、
+  遠端極簡籃框。對應 App 的「一個人練球」核心情境。
 
-## 4. 生成 Prompt（拿去給圖像 AI）
+## 4. 生成 Prompt（拿去給圖像 AI；2026-07-13 改版：剪影風＋背後視角）
 
 ### 主 Prompt（英文，直接貼）
 
 ```
-Flat vector illustration in the style of a modern editorial sports magazine
-cover. A lone basketball player in mid-air jump shot form, seen in profile
-silhouette, on an empty outdoor basketball court at dusk. The ball floats
-mid-arc toward a minimalist hoop, its flight path traced by a thin dotted
-curve. Bold geometric shapes, clean flat color blocks, no gradients, no
-outlines, subtle paper grain texture. Limited palette: burnt orange #E8590C,
-warm off-white #FAF9F7, deep charcoal #2B2A28, warm sand #F1E8DD, deep
-night blue #1F3A5F. Long simple shadows on the court. Large area of calm
-negative space in the upper left for a magazine masthead. No text, no
-letters, no logos, no watermark. Wide landscape composition, 1200x630.
+Flat vector silhouette illustration, modern editorial sports poster. Camera
+directly behind a lone basketball player: his clean dark silhouette in deep
+charcoal #2B2A28 stands with his back to the viewer, arm extended in a
+jump-shot follow-through, facing a distant minimalist hoop. A burnt orange
+#E8590C basketball floats at the top of its arc between player and rim, the
+flight path traced by a thin dotted curve. Empty outdoor court in warm
+off-white #FAF9F7 with a warm sand #F1E8DD paint area, vast dusk sky in deep
+night blue #1F3A5F filling the upper frame. Bold flat geometric color
+blocks, no gradients, no outlines, subtle paper grain. Player silhouette
+anchored right of center; generous calm negative space in the upper left
+for a magazine masthead. No text, no letters, no logos, no watermark.
+Wide landscape composition, 1200x630.
 ```
 
-### 備用變體（構圖不同，挑一張最好的）
+### 備用變體（同一概念、更低更近的過肩鏡位，挑一張最好的）
 
 ```
-Minimalist flat illustration, sports editorial cover art. Low-angle view of
-a basketball hoop against a dusk sky in deep night blue #1F3A5F, a burnt
-orange #E8590C basketball frozen at the top of its arc, dotted trajectory
-line, warm off-white #FAF9F7 court below with warm sand #F1E8DD paint area.
-A small solitary shooter figure in deep charcoal #2B2A28 in the lower right,
-follow-through pose. Flat geometric shapes, subtle grain, generous negative
-space on the left half for title text. No text, no logos. 1200x630 wide.
+Minimalist flat silhouette illustration, sports editorial cover art. Low
+over-the-shoulder view from behind a basketball shooter: his deep charcoal
+#2B2A28 silhouette rises large in the right foreground, back to the viewer,
+wrist snapped in follow-through. Far ahead a small minimalist hoop stands
+against a deep night blue #1F3A5F dusk sky; a burnt orange #E8590C ball
+hangs mid-arc on a thin dotted trajectory between hand and rim. Warm
+off-white #FAF9F7 court with warm sand #F1E8DD key, one long simple shadow
+stretching from the player. Flat geometric shapes, subtle grain, no
+gradients, no outlines. Left half mostly calm negative space for title
+text. No text, no letters, no logos, no watermark. 1200x630 wide landscape.
 ```
 
 ### 生成後檢查清單
