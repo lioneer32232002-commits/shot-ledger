@@ -263,8 +263,12 @@ function renderHeroCard(menu, isPassed) {
     ? renderPassRuleBars(evaluatePassRule(recentFull, menu.passRule).detail)
     : `<p class="hero-card__gap-empty">先完成一次完整版挑戰，就能看到跟解鎖條件的差距。</p>`;
 
+  // 關卡序號浮水印（雜誌刊號感，氛圍用，資訊仍以「第 X 關 / 6」小字為準）
+  const bignum = String(menu.tier).padStart(2, '0');
+
   return `
     <section class="hero-card">
+      <span class="hero-card__bignum" aria-hidden="true">${bignum}</span>
       <div class="hero-card__top">
         <span class="hero-card__tier">第 ${menu.tier} 關 / 6</span>
         ${isPassed ? '<span class="hero-card__passed">✓ 已通過</span>' : ''}
@@ -274,9 +278,13 @@ function renderHeroCard(menu, isPassed) {
       ${renderCareerHtml(menu.career, menu.passRule)}
       <p class="hero-card__focus">${menu.focus}</p>
       <p class="inspired-note">依公開報導風格改編的靈感版本・單人可執行</p>
-      <div class="hero-card__best">個人最佳（完整版）：<strong>${bestHtml}</strong></div>
       ${gapHtml}
-      <button class="btn btn--primary hero-card__cta" data-open-variant="${menu.id}">開始挑戰</button>
+      <div class="hero-card__bottom-row">
+        <div class="hero-card__best">個人最佳（完整版）：<strong>${bestHtml}</strong></div>
+        <button class="hero-card__cta-circle" data-open-variant="${menu.id}" aria-label="開始挑戰">
+          <span>開始</span><span>挑戰</span>
+        </button>
+      </div>
     </section>
   `;
 }
