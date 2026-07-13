@@ -10,11 +10,11 @@ export const SPOTS = [
   { id: "mid_rw", label: "右 45° 中距", type: "2pt", cx: 535, cy: 235 },
   { id: "mid_rc", label: "右底角中距", type: "2pt", cx: 600, cy: 100 },
   { id: "ft", label: "罰球", type: "ft", cx: 375, cy: 310 },
-  { id: "3pt_lc", label: "左底角三分", type: "3pt", cx: 60, cy: 110 },
+  { id: "3pt_lc", label: "左底角三分", type: "3pt", cx: 45, cy: 110 },
   { id: "3pt_lw", label: "左 45° 三分", type: "3pt", cx: 136, cy: 317 },
   { id: "3pt_top", label: "弧頂三分", type: "3pt", cx: 375, cy: 416 },
   { id: "3pt_rw", label: "右 45° 三分", type: "3pt", cx: 614, cy: 317 },
-  { id: "3pt_rc", label: "右底角三分", type: "3pt", cx: 690, cy: 110 },
+  { id: "3pt_rc", label: "右底角三分", type: "3pt", cx: 705, cy: 110 },
   { id: "deep_l", label: "左深三", type: "deep3", cx: 83, cy: 370 },
   { id: "deep_top", label: "弧頂深三", type: "deep3", cx: 375, cy: 491 },
   { id: "deep_r", label: "右深三", type: "deep3", cx: 667, cy: 370 },
@@ -95,7 +95,11 @@ export function renderCourt(container, opts) {
       const p = data && data.att > 0 ? Math.round((data.mk / data.att) * 100) : null;
       fillVar = heatColor(p);
       if (data && data.att > 0) {
-        innerText = `<text class="spot-heat-text" x="${spot.cx}" y="${spot.cy + 4}" text-anchor="middle">${data.mk}/${data.att}</text>`;
+        // 兩行：上行命中率（粗、大），下行投中比數（細、小）
+        innerText = `
+          <text class="spot-heat-pct" x="${spot.cx}" y="${spot.cy - 2}" text-anchor="middle">${p}%</text>
+          <text class="spot-heat-mkatt" x="${spot.cx}" y="${spot.cy + 14}" text-anchor="middle">${data.mk}/${data.att}</text>
+        `;
       }
     }
 
@@ -104,12 +108,24 @@ export function renderCourt(container, opts) {
     if (isSelected) classes.push("is-selected");
     if (locked) classes.push("is-locked");
 
+    // 底角三分點落在邊線上（cx 貼齊 45 / 705），標籤置中會超出 viewBox，
+    // 左底角改靠左對齊、右底角改靠右對齊，並各自往內縮一點。
+    let labelAnchor = "middle";
+    let labelX = spot.cx;
+    if (spot.id === "3pt_lc") {
+      labelAnchor = "start";
+      labelX = spot.cx + 4;
+    } else if (spot.id === "3pt_rc") {
+      labelAnchor = "end";
+      labelX = spot.cx - 4;
+    }
+
     return `
       <g class="${classes.join(" ")}" data-spot="${spot.id}" tabindex="${mode === "pick" && !locked ? 0 : -1}" role="${mode === "pick" && !locked ? "button" : "img"}" aria-label="${spot.label}">
         <circle class="spot-hit" cx="${spot.cx}" cy="${spot.cy}" r="22" fill="transparent" />
         <circle class="spot-dot" cx="${spot.cx}" cy="${spot.cy}" r="${r}" style="fill:${fillVar}" />
         ${innerText}
-        <text class="spot-label" x="${spot.cx}" y="${spot.cy - r - 8}" text-anchor="middle">${spot.label}</text>
+        <text class="spot-label" x="${labelX}" y="${spot.cy - r - 8}" text-anchor="${labelAnchor}">${spot.label}</text>
       </g>
     `;
   }).join("");

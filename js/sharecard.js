@@ -118,7 +118,9 @@ function roundRectPath(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-function drawBrandMark(ctx, x, baselineY) {
+// textColor：品牌名文字色，紙感版是深炭色，照片版改亮色（球圖示本身的橘底＋淺色十字線
+// 不受影響，因為它畫在 accent 圓底上，不是畫在卡片背景上）。
+function drawBrandMark(ctx, x, baselineY, textColor = COLORS.text) {
   const r = 22;
   const cy = baselineY - r + 8;
   ctx.beginPath();
@@ -134,18 +136,43 @@ function drawBrandMark(ctx, x, baselineY) {
   ctx.lineTo(x + r, cy + r);
   ctx.stroke();
 
-  ctx.fillStyle = COLORS.text;
+  ctx.fillStyle = textColor;
   ctx.font = `800 32px ${FONT_FAMILY}`;
   ctx.textBaseline = 'alphabetic';
   ctx.fillText('SHOT LEDGER', x + r * 2 + 18, baselineY);
 }
 
+/** 把圖片以「cover」方式裁切鋪滿 (w, h)：短邊貼齊、置中裁切長邊，不變形。 */
+function drawCoverImage(ctx, img, w, h) {
+  const iw = img.naturalWidth || img.width;
+  const ih = img.naturalHeight || img.height;
+  if (!iw || !ih) return;
+  const targetRatio = w / h;
+  const srcRatio = iw / ih;
+  let sx, sy, sw, sh;
+  if (srcRatio > targetRatio) {
+    // 圖片比卡片寬：裁左右
+    sh = ih;
+    sw = ih * targetRatio;
+    sx = (iw - sw) / 2;
+    sy = 0;
+  } else {
+    // 圖片比卡片高：裁上下
+    sw = iw;
+    sh = iw / targetRatio;
+    sx = 0;
+    sy = (ih - sh) / 2;
+  }
+  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
+}
+
 // 半場座標系與 court.js 一致（viewBox 0 0 750 560），這裡用 canvas 手繪簡化版。
-function drawMiniCourt(ctx, heatSpots, ox, oy, scale) {
+// lineColor：球場線色，紙感版用不透明淺灰，照片版改半透明白（暗底上才看得清楚）。
+function drawMiniCourt(ctx, heatSpots, ox, oy, scale, lineColor = COLORS.courtLine) {
   const tx = (px) => ox + px * scale;
   const ty = (py) => oy + py * scale;
 
-  ctx.strokeStyle = COLORS.courtLine;
+  ctx.strokeStyle = lineColor;
   ctx.lineWidth = 3;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
@@ -192,35 +219,81 @@ function drawMiniCourt(ctx, heatSpots, ox, oy, scale) {
   ctx.arc(tx(hoopX), ty(hoopY), 11.5 * scale, 0, Math.PI * 2);
   ctx.stroke();
 
-  // 出手點位：僅畫該節有出手的點，顏色同熱區三級。
+  // 出手點位：僅畫該節有出手的點，顏色同熱區三級；點內畫命中率%（canvas 版空間較小，只畫 %）。
   heatSpots.forEach((s) => {
     ctx.beginPath();
     ctx.fillStyle = heatTierColor(s.pct);
     ctx.arc(tx(s.cx), ty(s.cy), 20 * scale, 0, Math.PI * 2);
     ctx.fill();
+
+    if (s.pct !== null) {
+      ctx.fillStyle = '#fff';
+      ctx.font = `800 ${15 * scale}px ${FONT_FAMILY}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${s.pct}%`, tx(s.cx), ty(s.cy));
+    }
   });
+
+  // 還原預設對齊方式，避免影響 drawCard 後續段落的文字繪製
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
 }
 
 /**
  * 純畫圖：把 buildCardData() 的資料畫進 canvas（會重設 canvas 尺寸為 1080x1350）。
  * @param {HTMLCanvasElement} canvas
  * @param {Object} data buildCardData() 的回傳值
+ * @param {{photoImg?: HTMLImageElement|null}} [opts] opts.photoImg：使用者自訂照片背景，
+ *   只存在記憶體（呼叫端自己管理），這裡純讀取、不落地存任何東西。無照片時輸出與紙感版一致。
  */
-export function drawCard(canvas, data) {
+export function drawCard(canvas, data, opts = {}) {
+  const photoImg = opts && opts.photoImg ? opts.photoImg : null;
+
   canvas.width = CARD_W;
   canvas.height = CARD_H;
   const ctx = canvas.getContext('2d');
 
-  ctx.fillStyle = COLORS.bg;
-  ctx.fillRect(0, 0, CARD_W, CARD_H);
+  // 照片模式：文字全面改亮色系，好在暗化後的照片上維持可讀；無照片時維持紙感亮色版原樣。
+  const palette = photoImg
+    ? {
+        text: '#FAF9F7',
+        muted: 'rgba(255, 255, 255, 0.72)',
+        accent: COLORS.accent,
+        courtLine: 'rgba(255, 255, 255, 0.55)',
+        badgeBg: 'rgba(255, 255, 255, 0.18)',
+      }
+    : {
+        text: COLORS.text,
+        muted: COLORS.muted,
+        accent: COLORS.accent,
+        courtLine: COLORS.courtLine,
+        badgeBg: COLORS.sand,
+      };
+
+  if (photoImg) {
+    drawCoverImage(ctx, photoImg, CARD_W, CARD_H);
+    // 整面暗化＋上下加深的漸層，確保品牌列與底部網址永遠可讀
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+    ctx.fillRect(0, 0, CARD_W, CARD_H);
+    const grad = ctx.createLinearGradient(0, 0, 0, CARD_H);
+    grad.addColorStop(0, 'rgba(0, 0, 0, 0.55)');
+    grad.addColorStop(0.5, 'rgba(0, 0, 0, 0.25)');
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0.65)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, CARD_W, CARD_H);
+  } else {
+    ctx.fillStyle = COLORS.bg;
+    ctx.fillRect(0, 0, CARD_W, CARD_H);
+  }
 
   const marginX = 76;
   let y = 100;
 
   // 1. 品牌列（左：小籃球圖示＋SHOT LEDGER；右：日期）
-  drawBrandMark(ctx, marginX, y);
+  drawBrandMark(ctx, marginX, y, palette.text);
   ctx.textAlign = 'right';
-  ctx.fillStyle = COLORS.muted;
+  ctx.fillStyle = palette.muted;
   ctx.font = `700 30px ${FONT_FAMILY}`;
   ctx.fillText(data.dateLabel, CARD_W - marginX, y);
   ctx.textAlign = 'left';
@@ -229,14 +302,14 @@ export function drawCard(canvas, data) {
   // 2. 菜單名＋變體 tag
   const menuLine = data.variantLabel ? `${data.menuName}・${data.variantLabel}` : data.menuName;
   const menuSize = fitFontSize(ctx, menuLine, CARD_W - marginX * 2, 46, 800);
-  ctx.fillStyle = COLORS.text;
+  ctx.fillStyle = palette.text;
   ctx.font = `800 ${menuSize}px ${FONT_FAMILY}`;
   ctx.fillText(menuLine, marginX, y);
   y += 66;
 
   // 3. 主數字：總命中率超大字＋投中比數
   const pctLabel = data.totalPct === null ? '—' : `${data.totalPct}%`;
-  ctx.fillStyle = COLORS.accent;
+  ctx.fillStyle = palette.accent;
   ctx.font = `800 150px ${FONT_FAMILY}`;
   ctx.fillText(pctLabel, marginX, y + 122);
   const pctWidth = ctx.measureText(pctLabel).width;
@@ -244,7 +317,7 @@ export function drawCard(canvas, data) {
   const detailLabel = `${data.totalMk}/${data.totalAtt} 投中`;
   const detailX = marginX + pctWidth + 28;
   const detailSize = fitFontSize(ctx, detailLabel, CARD_W - marginX - detailX, 34, 700);
-  ctx.fillStyle = COLORS.muted;
+  ctx.fillStyle = palette.muted;
   ctx.font = `700 ${detailSize}px ${FONT_FAMILY}`;
   ctx.fillText(detailLabel, detailX, y + 122);
   y += 176;
@@ -253,7 +326,7 @@ export function drawCard(canvas, data) {
   data.typeRows.forEach((row) => {
     const line = `${row.label} ${row.mk}/${row.att}・${row.pct === null ? '—' : row.pct + '%'}`;
     const size = fitFontSize(ctx, line, CARD_W - marginX * 2, 36, 700);
-    ctx.fillStyle = COLORS.text;
+    ctx.fillStyle = palette.text;
     ctx.font = `700 ${size}px ${FONT_FAMILY}`;
     ctx.fillText(line, marginX, y);
     y += 50;
@@ -265,7 +338,7 @@ export function drawCard(canvas, data) {
   const scale = courtW / 750;
   const courtH = 560 * scale;
   const courtX = (CARD_W - courtW) / 2;
-  drawMiniCourt(ctx, data.heatSpots, courtX, y, scale);
+  drawMiniCourt(ctx, data.heatSpots, courtX, y, scale, palette.courtLine);
   y += courtH + 44;
 
   // 6. 狀態列（有才顯示，最多兩枚扁平徽章）
@@ -278,9 +351,9 @@ export function drawCard(canvas, data) {
     badges.forEach((label) => {
       const w = ctx.measureText(label).width + 44;
       roundRectPath(ctx, bx, y, w, 56, 28);
-      ctx.fillStyle = COLORS.sand;
+      ctx.fillStyle = palette.badgeBg;
       ctx.fill();
-      ctx.fillStyle = COLORS.accent;
+      ctx.fillStyle = palette.accent;
       ctx.fillText(label, bx + 22, y + 37);
       bx += w + 18;
     });
@@ -288,7 +361,7 @@ export function drawCard(canvas, data) {
 
   // 7. 底部：網址（小字置中）
   ctx.textAlign = 'center';
-  ctx.fillStyle = COLORS.muted;
+  ctx.fillStyle = palette.muted;
   ctx.font = `600 24px ${FONT_FAMILY}`;
   ctx.fillText('shot-ledger.pages.dev', CARD_W / 2, CARD_H - 56);
   ctx.textAlign = 'left';
@@ -317,18 +390,23 @@ function formatFilenameDate(iso) {
 }
 
 /**
- * 開啟成績分享卡的全螢幕 sheet：畫卡片預覽＋提供分享／下載／關閉。
+ * 開啟成績分享卡的全螢幕 sheet：畫卡片預覽＋提供分享／下載／關閉，
+ * 另外可選「用自己的照片當背景」重繪成照片版。
  * @param {Object} session
  * @param {Object} state 完整 store 狀態
  */
 export function openShareSheet(session, state) {
   const data = buildCardData(session, state);
   const canvas = document.createElement('canvas');
-  drawCard(canvas, data);
-
-  const dataUrl = canvas.toDataURL('image/png');
-  const blob = dataURLToBlob(dataUrl);
   const filename = `shotledger-card-${formatFilenameDate(session.startedAt)}.png`;
+
+  // 使用者自訂照片：只存在這個閉包的記憶體裡（Image 物件），不進 localStorage、
+  // 也不經過 store，sheet 關閉就釋放。dataUrl/blob/file 每次重繪都整組重建，
+  // 分享／下載一律拿最新版。
+  let photoImg = null;
+  let dataUrl = '';
+  let blob = null;
+  let file = null;
 
   const backdrop = document.createElement('div');
   backdrop.className = 'sheet-backdrop share-sheet-backdrop';
@@ -337,6 +415,13 @@ export function openShareSheet(session, state) {
       <h3 class="sheet__title">分享成績卡</h3>
       <div class="share-sheet__preview">
         <img alt="成績分享卡預覽" />
+      </div>
+      <div class="share-sheet__photo-actions">
+        <label class="btn btn--secondary share-sheet__photo-btn">
+          用自己的照片當背景
+          <input type="file" accept="image/*" class="visually-hidden" data-action="pick-photo" />
+        </label>
+        <button class="btn btn--ghost" data-action="remove-photo" hidden>移除照片</button>
       </div>
       <div class="share-sheet__actions">
         <button class="btn btn--primary" data-action="share-card" hidden>分享</button>
@@ -347,28 +432,67 @@ export function openShareSheet(session, state) {
   `;
   document.body.appendChild(backdrop);
 
-  backdrop.querySelector('img').src = dataUrl;
-
+  const previewImg = backdrop.querySelector('.share-sheet__preview img');
+  const photoInput = backdrop.querySelector('[data-action="pick-photo"]');
+  const removePhotoBtn = backdrop.querySelector('[data-action="remove-photo"]');
   const shareBtn = backdrop.querySelector('[data-action="share-card"]');
   const downloadBtn = backdrop.querySelector('[data-action="download-card"]');
   const closeBtn = backdrop.querySelector('[data-action="close-share"]');
 
-  let file = null;
-  try {
-    file = new File([blob], filename, { type: 'image/png' });
-  } catch (err) {
-    file = null; // 極少數不支援 File 建構子的環境，僅隱藏分享鈕即可
+  /** 畫完卡片後，重建 dataUrl/blob/File 並同步預覽圖與分享鈕可見性。 */
+  function refreshOutputs() {
+    dataUrl = canvas.toDataURL('image/png');
+    blob = dataURLToBlob(dataUrl);
+    previewImg.src = dataUrl;
+    try {
+      file = new File([blob], filename, { type: 'image/png' });
+    } catch (err) {
+      file = null; // 極少數不支援 File 建構子的環境，僅隱藏分享鈕即可
+    }
+    shareBtn.hidden = !(file && navigator.canShare && navigator.canShare({ files: [file] }));
   }
-  if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
-    shareBtn.hidden = false;
-    shareBtn.addEventListener('click', async () => {
-      try {
-        await navigator.share({ files: [file], title: 'Shot Ledger' });
-      } catch (err) {
-        // 使用者取消分享是正常操作，不特別處理
-      }
-    });
+
+  function render() {
+    drawCard(canvas, data, { photoImg });
+    refreshOutputs();
   }
+
+  render();
+
+  photoInput.addEventListener('change', () => {
+    const f = photoInput.files && photoInput.files[0];
+    if (!f) return;
+    const objectUrl = URL.createObjectURL(f);
+    const img = new Image();
+    img.onload = () => {
+      photoImg = img;
+      removePhotoBtn.hidden = false;
+      render();
+      URL.revokeObjectURL(objectUrl);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+    };
+    img.src = objectUrl;
+  });
+
+  removePhotoBtn.addEventListener('click', () => {
+    photoImg = null;
+    removePhotoBtn.hidden = true;
+    photoInput.value = '';
+    render();
+  });
+
+  // shareBtn / downloadBtn 只綁一次：閉包讀的是外層 file / blob 變數，
+  // 每次 render() 重新賦值後，這裡拿到的永遠是最新版，不必重新綁定事件。
+  shareBtn.addEventListener('click', async () => {
+    if (!file) return;
+    try {
+      await navigator.share({ files: [file], title: 'Shot Ledger' });
+    } catch (err) {
+      // 使用者取消分享是正常操作，不特別處理
+    }
+  });
 
   downloadBtn.addEventListener('click', () => {
     const url = URL.createObjectURL(blob);

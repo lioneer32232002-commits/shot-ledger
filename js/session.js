@@ -45,6 +45,7 @@ let timerId = null;
 let inputMode = 'quick'; // 'quick' | 'seq'，跨節記住（存在 settings）
 let pendingSeq = []; // 逐球模式下，目前這輪的 boolean 陣列
 let variantSheetMenuId = null; // 首頁：正在選變體（簡易/完整）的菜單 id
+let menuComplete = false; // 菜單模式下，seqList 所有輪次已記錄完但尚未按「結束並結算」（§4）
 let justFinishedResult = null; // 剛結束本節時算出的挑戰結果（給結束頁做慶祝動畫用）
 let pendingRetry = null; // 從其他分頁按「再挑戰一次」時，記著要開的菜單，等 train 分頁掛載時執行
 
@@ -85,6 +86,7 @@ export function unmount() {
   editingSeq = null;
   confirmDiscard = false;
   variantSheetMenuId = null;
+  menuComplete = false;
   clearTimeout(toastHideTimer);
   toastMessage = null;
   if (root) root.removeEventListener('click', onActiveClick);
@@ -488,6 +490,7 @@ function startSession(modeId, variant) {
   editingSeq = null;
   confirmDiscard = false;
   attemptsStepperOpen = false;
+  menuComplete = false;
   inputMode = state.settings.inputMode || 'quick';
   pendingSeq = makeEmptySeq(attemptsForRound);
 
@@ -555,6 +558,7 @@ function resumeSession() {
   editingRoundIndex = null;
   editingSeq = null;
   confirmDiscard = false;
+  menuComplete = false;
   inputMode = state.settings.inputMode || 'quick';
   pendingSeq = makeEmptySeq(attemptsForRound);
 
@@ -566,8 +570,11 @@ function resumeSession() {
       pendingSpot = spotId;
       pendingType = getSpot(spotId).type;
     } else {
-      finishSession();
-      return;
+      // 所有輪次已記錄完但尚未結算（見 completeRound() 同一分支的說明）：
+      // 進完成狀態，不直接呼叫 finishSession()。
+      menuComplete = true;
+      pendingSpot = null;
+      pendingType = null;
     }
   } else {
     pendingSpot = null;
@@ -636,11 +643,16 @@ function renderActive() {
       </section>`
     : '';
 
+  const modeHintText = inputMode === 'seq'
+    ? '記這輪哪幾球有進（點亮有進的球）'
+    : '只記這輪進了幾球';
+
   const modeToggleHtml = `
     <div class="input-mode-toggle" role="group" aria-label="輸入模式">
       <button class="input-mode-btn ${inputMode === 'quick' ? 'is-active' : ''}" data-action="set-input-mode:quick">快速</button>
       <button class="input-mode-btn ${inputMode === 'seq' ? 'is-active' : ''}" data-action="set-input-mode:seq">逐球</button>
     </div>
+    <p class="input-mode-hint">${modeHintText}</p>
   `;
 
   const roundInputBody = inputMode === 'seq'
@@ -654,16 +666,28 @@ function renderActive() {
       ${makesGridHtml(attemptsForRound, (n, spanAttr) => `<button class="makes-btn" data-action="confirm-makes:${n}" ${!pendingType ? 'disabled' : ''}${spanAttr}>${n}</button>`)}
     `;
 
-  const roundInputHtml = `
-    <div class="round-input">
-      <div class="round-input__head">
-        <span class="round-input__spot">${currentLabel}</span>
-        <button class="chip chip--attempts" data-action="open-attempts">實投 ${attemptsForRound} 球</button>
+  // 菜單模式所有輪次都記完，但尚未按「結束並結算」：輸入區換成完成面板（§4）。
+  const roundInputHtml = isMenuMode && menuComplete
+    ? `
+      <div class="round-input completion-panel">
+        <p class="completion-panel__title">${seqList.length} 輪全部完成 🎉</p>
+        <p class="completion-panel__hint">確認無誤後結算</p>
+        <button class="btn btn--primary completion-panel__finish" data-action="finish-menu">結束並結算</button>
       </div>
-      ${modeToggleHtml}
-      ${roundInputBody}
-    </div>
-  `;
+    `
+    : `
+      <div class="round-input">
+        <div class="round-input__head">
+          <div class="round-input__headline">
+            <span class="round-input__round">${roundLabel}</span>
+            <span class="round-input__spot">${currentLabel}</span>
+          </div>
+          <button class="chip chip--attempts" data-action="open-attempts">實投 ${attemptsForRound} 球</button>
+        </div>
+        ${modeToggleHtml}
+        ${roundInputBody}
+      </div>
+    `;
 
   const completedRounds = activeSession.rounds.map((r, i) => {
     const spot = r.spot ? getSpot(r.spot) : null;
@@ -672,6 +696,7 @@ function renderActive() {
         <span class="round-row__idx">#${i + 1}</span>
         <span class="round-row__spot">${spot ? spot.label : `不指定・${typeLabel(r.type)}`}${r.seq ? '<span class="round-row__seq-tag">逐球</span>' : ''}</span>
         <span class="round-row__score">${r.makes}/${r.attempts}</span>
+        <span class="round-row__edit-icon" aria-hidden="true">✎</span>
       </li>
     `;
   }).join('');
@@ -904,6 +929,10 @@ function onActiveClick(e) {
     finishSession();
     return;
   }
+  if (action === 'finish-menu') {
+    finishSession();
+    return;
+  }
 }
 
 function completeRound(makes, seq) {
@@ -940,7 +969,12 @@ function completeRound(makes, seq) {
       pendingSeq = makeEmptySeq(attemptsForRound);
       renderActive();
     } else {
-      finishSession();
+      // 最後一輪記完後不再自動結算（M4 §4）：進完成狀態，
+      // 讓使用者自己確認後按「結束並結算」才呼叫 finishSession()。
+      menuComplete = true;
+      pendingSpot = null;
+      pendingType = null;
+      renderActive();
     }
   } else {
     pendingSpot = null;

@@ -106,7 +106,8 @@ a {
 .summary__total-num,
 .type-row__score,
 .type-row__pct,
-.spot-heat-text {
+.spot-heat-pct,
+.spot-heat-mkatt {
   font-variant-numeric: tabular-nums;
 }
 
@@ -571,9 +572,22 @@ a {
   fill: var(--color-spot-idle);
 }
 
+/* 正在投的點：柔和光暈＋緩慢呼吸，動線提示用、幅度不搶眼 */
 .court-spot--pick.is-selected .spot-dot {
   fill: var(--color-accent);
   stroke: var(--color-accent-dark);
+  filter: drop-shadow(0 0 6px var(--color-accent));
+  animation: spot-glow-breathe 2.6s ease-in-out infinite;
+}
+
+@keyframes spot-glow-breathe {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 4px var(--color-accent));
+  }
+  50% {
+    filter: drop-shadow(0 0 9px var(--color-accent));
+  }
 }
 
 .spot-label {
@@ -596,10 +610,19 @@ a {
   display: none;
 }
 
-.spot-heat-text {
-  font-size: 13px;
+/* heat 模式點內兩行文字：上行命中率（粗、大），下行投中比數（細、小） */
+.spot-heat-pct {
+  font-size: 15px;
   font-weight: 800;
   fill: #fff;
+  pointer-events: none;
+  paint-order: stroke;
+}
+
+.spot-heat-mkatt {
+  font-size: 10px;
+  font-weight: 700;
+  fill: rgba(255, 255, 255, 0.88);
   pointer-events: none;
   paint-order: stroke;
 }
@@ -628,8 +651,23 @@ a {
   gap: var(--space-2);
 }
 
-.round-input__spot {
+.round-input__headline {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* 輪次標示：移進輸入區塊、跟點位名稱同區，字級不小於 text-sm、粗體（§3） */
+.round-input__round {
+  font-size: var(--text-sm);
+  font-weight: 800;
+  color: var(--color-accent-dark);
+  white-space: nowrap;
+}
+
+.round-input__spot {
   min-width: 0;
   font-weight: 700;
   font-size: var(--text-sm);
@@ -648,12 +686,19 @@ a {
 .makes-grid {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
+  justify-items: center;
   gap: var(--space-2);
 }
 
+/* 圓形數字鈕，比照球的意象；固定直徑（不隨欄寬拉伸成橢圓），
+   觸控目標維持 ≥44px。最後一顆補滿列尾的按鈕（grid-column: span）
+   同樣是固定直徑圓形，只是置中在較寬的儲存格裡，不會被拉長。 */
 .makes-btn {
-  min-height: 56px;
-  border-radius: var(--radius-md);
+  width: 48px;
+  height: 48px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 50%;
   background: var(--color-surface-sunken);
   border: 1.5px solid var(--color-border);
   font-size: var(--text-lg);
@@ -742,6 +787,35 @@ a {
   color: var(--color-accent-dark);
 }
 
+/* 已完成清單每列右側的可點提示（鉛筆），讓「點一下可修改」更明顯 */
+.round-row__edit-icon {
+  flex: 0 0 auto;
+  color: var(--color-text-faint);
+  font-size: var(--text-sm);
+}
+
+/* 菜單全部輪次完成後的完成面板（取代輸入區，§4）：不再自動結算，
+   等使用者確認無誤後自己按「結束並結算」。 */
+.completion-panel {
+  align-items: center;
+  text-align: center;
+  gap: var(--space-3);
+}
+
+.completion-panel__title {
+  font-size: var(--text-lg);
+  font-weight: 800;
+}
+
+.completion-panel__hint {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.completion-panel__finish {
+  width: 100%;
+}
+
 .active-footer {
   display: flex;
   gap: var(--space-3);
@@ -819,12 +893,17 @@ a {
 .stepper-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
+  justify-items: center;
   gap: var(--space-2);
 }
 
+/* 圓形數字鈕（比照 .makes-btn／.seq-ball），固定直徑置中在儲存格內 */
 .stepper-btn {
-  min-height: 48px;
-  border-radius: var(--radius-md);
+  width: 48px;
+  height: 48px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 50%;
   background: var(--color-surface-sunken);
   border: 1.5px solid var(--color-border);
   font-weight: 700;
@@ -1734,31 +1813,49 @@ a {
 /* 變體選擇 Sheet（簡易 / 完整）                                            */
 /* ---------------------------------------------------------------------- */
 
+/* 並排方卡（取代舊版全寬長條），比照 SHOT 圓形 CTA 的質感：外圈細 ring＋按壓 scale */
 .variant-options {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
 }
 
 .variant-option {
-  min-height: var(--touch-min);
+  position: relative;
+  min-height: 108px;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-md);
+  justify-content: center;
+  gap: var(--space-1);
+  padding: var(--space-4) var(--space-3);
+  border-radius: var(--radius-lg);
   background: var(--color-surface-sunken);
   border: 1.5px solid var(--color-border);
-  text-align: left;
+  text-align: center;
+  transition: transform var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
+}
+
+/* 外圈 ring，呼應 .hero-card__cta-circle::after */
+.variant-option::after {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border-radius: calc(var(--radius-lg) - 3px);
+  border: 1.5px solid var(--color-accent);
+  opacity: 0.16;
+  pointer-events: none;
 }
 
 .variant-option:active {
   border-color: var(--color-accent);
   background: var(--color-accent-tint);
+  transform: scale(0.97);
 }
 
 .variant-option__name {
   font-weight: 800;
+  font-size: var(--text-lg);
 }
 
 .variant-option__meta {
@@ -1817,9 +1914,16 @@ a {
 }
 
 .input-mode-btn.is-active {
-  background: var(--color-surface);
-  color: var(--color-accent-dark);
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
   box-shadow: var(--shadow-sm);
+}
+
+/* 快速／逐球：切換下方一行說明，依模式即時更新（§5） */
+.input-mode-hint {
+  text-align: center;
+  font-size: var(--text-xs);
+  color: var(--color-text-faint);
 }
 
 .seq-balls {
@@ -2623,6 +2727,17 @@ a {
   object-fit: contain;
 }
 
+/* 自訂照片背景：選圖／移除照片（§8） */
+.share-sheet__photo-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.share-sheet__photo-btn {
+  flex: 1;
+  cursor: pointer;
+}
+
 .share-sheet__actions {
   display: flex;
   flex-direction: column;
@@ -2653,7 +2768,8 @@ a {
   .goal-card__fill,
   .celebration,
   .celebration__card,
-  .confetti-piece {
+  .confetti-piece,
+  .court-spot--pick.is-selected .spot-dot {
     animation: none !important;
     transition: none !important;
   }
