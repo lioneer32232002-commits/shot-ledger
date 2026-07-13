@@ -1,0 +1,32 @@
+# push 到 main 自動部署到 Cloudflare Pages（取代手動 wrangler 指令）。
+# 背景：shot-ledger 專案是 wrangler 直傳（Direct Upload）建立的，官方不支援
+# 事後改接 Git 整合，所以用 Actions 跑 wrangler 達到同樣的「push 即部署」。
+# 需要兩個 repo secrets：
+#   CLOUDFLARE_ACCOUNT_ID — 帳號 ID（wrangler whoami 可查）
+#   CLOUDFLARE_API_TOKEN  — 自訂 token，權限只給 Account → Cloudflare Pages → Edit
+name: Deploy to Cloudflare Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # 手動觸發用（Actions 分頁的 Run workflow 按鈕）
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      # 部署前守門：統計函式測試全過才准上線（與本機驗收同一套）
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node tools/test_stats.mjs
+
+      - name: Deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy . --project-name shot-ledger --branch main
