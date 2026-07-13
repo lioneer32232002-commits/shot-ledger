@@ -87,13 +87,15 @@ export function renderCourt(container, opts) {
 
   const spotsMarkup = SPOTS.map((spot) => {
     const isSelected = selected === spot.id;
-    let fillVar = "var(--color-spot-idle)";
+    // pick 模式的 fill 交給 CSS（.court-spot--pick / .is-selected），
+    // 內聯 style 會蓋過樣式表，只有 heat 模式才需要動態指定顏色。
+    let fillStyle = "";
     let innerText = "";
 
     if (mode === "heat") {
       const data = heat[spot.id];
       const p = data && data.att > 0 ? Math.round((data.mk / data.att) * 100) : null;
-      fillVar = heatColor(p);
+      fillStyle = ` style="fill:${heatColor(p)}"`;
       if (data && data.att > 0) {
         // 兩行：上行命中率（粗、大），下行投中比數（細、小）
         innerText = `
@@ -123,7 +125,7 @@ export function renderCourt(container, opts) {
     return `
       <g class="${classes.join(" ")}" data-spot="${spot.id}" tabindex="${mode === "pick" && !locked ? 0 : -1}" role="${mode === "pick" && !locked ? "button" : "img"}" aria-label="${spot.label}">
         <circle class="spot-hit" cx="${spot.cx}" cy="${spot.cy}" r="22" fill="transparent" />
-        <circle class="spot-dot" cx="${spot.cx}" cy="${spot.cy}" r="${r}" style="fill:${fillVar}" />
+        <circle class="spot-dot" cx="${spot.cx}" cy="${spot.cy}" r="${r}"${fillStyle} />
         ${innerText}
         <text class="spot-label" x="${labelX}" y="${spot.cy - r - 8}" text-anchor="${labelAnchor}">${spot.label}</text>
       </g>
