@@ -5,15 +5,15 @@
 export const SPOTS = [
   { id: "paint", label: "禁區近筐", type: "2pt", cx: 375, cy: 145 },
   { id: "mid_lc", label: "左底角中距", type: "2pt", cx: 150, cy: 100 },
-  { id: "mid_lw", label: "左45°中距", type: "2pt", cx: 215, cy: 235 },
+  { id: "mid_lw", label: "左 45° 中距", type: "2pt", cx: 215, cy: 235 },
   { id: "mid_top", label: "罰球線頂中距", type: "2pt", cx: 375, cy: 300 },
-  { id: "mid_rw", label: "右45°中距", type: "2pt", cx: 535, cy: 235 },
+  { id: "mid_rw", label: "右 45° 中距", type: "2pt", cx: 535, cy: 235 },
   { id: "mid_rc", label: "右底角中距", type: "2pt", cx: 600, cy: 100 },
   { id: "ft", label: "罰球", type: "ft", cx: 375, cy: 310 },
   { id: "3pt_lc", label: "左底角三分", type: "3pt", cx: 60, cy: 110 },
-  { id: "3pt_lw", label: "左45°三分", type: "3pt", cx: 136, cy: 317 },
+  { id: "3pt_lw", label: "左 45° 三分", type: "3pt", cx: 136, cy: 317 },
   { id: "3pt_top", label: "弧頂三分", type: "3pt", cx: 375, cy: 416 },
-  { id: "3pt_rw", label: "右45°三分", type: "3pt", cx: 614, cy: 317 },
+  { id: "3pt_rw", label: "右 45° 三分", type: "3pt", cx: 614, cy: 317 },
   { id: "3pt_rc", label: "右底角三分", type: "3pt", cx: 690, cy: 110 },
   { id: "deep_l", label: "左深三", type: "deep3", cx: 83, cy: 370 },
   { id: "deep_top", label: "弧頂深三", type: "deep3", cx: 375, cy: 491 },
@@ -24,7 +24,7 @@ export function getSpot(id) {
   return SPOTS.find((s) => s.id === id) || null;
 }
 
-const TYPE_LABEL = { "2pt": "2分", "3pt": "3分", deep3: "深3", ft: "罰球" };
+const TYPE_LABEL = { "2pt": "2 分", "3pt": "3 分", deep3: "深 3", ft: "罰球" };
 export function typeLabel(type) {
   return TYPE_LABEL[type] || type;
 }

@@ -34,29 +34,30 @@ inline data URI 直接放 index.html。
 - 尺寸 **1200×630 px**（og:image 標準），存 `assets/og.png`（<300KB）。
 - 構圖需求：**左側或上方留乾淨負空間**放標題字（標題由我們後製疊字，
   生成圖本身**不要有任何文字**——AI 生字容易爛）。
-- 情境（2026-07-13 二修定案）：**插畫剪影風、鏡頭在球員背後、望向籃框**，
+- 情境（2026-07-13 三修定案）：**插畫剪影風、鏡頭在球員背後、望向籃框**，
   **只畫半場投射、極簡到三個元素**——背影剪影（follow-through）、
-  球的虛線弧、遠端極簡籃框。球場不畫線（頂多一道地平交界），
-  細節越少越好。對應 App 的「一個人練球」核心情境。
+  懸空的球（**不畫軌跡線**）、遠端極簡籃框。球場不畫線（頂多一道
+  地平交界），細節越少越好。對應 App 的「一個人練球」核心情境。
 
-## 4. 生成 Prompt（拿去給圖像 AI；2026-07-13 二修：更簡約＋只畫半場）
+## 4. 生成 Prompt（拿去給圖像 AI；2026-07-13 三修：拿掉軌跡線）
 
 ### 主 Prompt（英文，直接貼）
 
 ```
 Ultra-minimal flat vector silhouette illustration, modern editorial sports
 poster. A half-court scene reduced to three elements only: a lone
-basketball player, the ball's arc, and one distant hoop. Camera directly
-behind the player — his clean dark silhouette in deep charcoal #2B2A28,
-back to the viewer, arm extended in a jump-shot follow-through. A burnt
-orange #E8590C ball floats at the top of its arc toward the minimalist
-hoop, the flight path traced by a thin dotted curve. The ground is one
-single flat plane of warm off-white #FAF9F7 with no court markings, no
-lines, no paint area — just a clean horizon meeting a vast dusk sky of
-deep night blue #1F3A5F. Bold flat color blocks, no gradients, no
-outlines, subtle paper grain. Nothing else in the frame; generous calm
-negative space in the upper left for a magazine masthead. No text, no
-letters, no logos, no watermark. Wide landscape composition, 1200x630.
+basketball player, one ball frozen in mid-air, and one distant hoop.
+Camera directly behind the player — his clean dark silhouette in deep
+charcoal #2B2A28, back to the viewer, arm extended in a jump-shot
+follow-through. A single burnt orange #E8590C ball hangs high in the air
+between player and rim, completely on its own — no trajectory line, no
+dotted curve, no motion lines, no trail. The ground is one single flat
+plane of warm off-white #FAF9F7 with no court markings, no lines, no
+paint area — just a clean horizon meeting a vast dusk sky of deep night
+blue #1F3A5F. Bold flat color blocks, no gradients, no outlines, subtle
+paper grain. Nothing else in the frame; generous calm negative space in
+the upper left for a magazine masthead. No text, no letters, no logos,
+no watermark. Wide landscape composition, 1200x630.
 ```
 
 ### 備用變體（同一概念、更低更近的過肩鏡位，挑一張最好的）
@@ -67,8 +68,9 @@ Half-court only, almost abstract: low over-the-shoulder view from behind a
 basketball shooter, his deep charcoal #2B2A28 silhouette rising in the
 right foreground, back to the viewer, wrist snapped in follow-through. Far
 ahead one small minimalist hoop — a bare pole and rim — against a deep
-night blue #1F3A5F dusk sky; a burnt orange #E8590C ball hangs mid-arc on
-a thin dotted trajectory between hand and rim. The ground is a plain warm
+night blue #1F3A5F dusk sky. A single burnt orange #E8590C ball floats
+high between hand and rim, alone in the sky — no trajectory line, no
+dotted curve, no motion lines, no trail. The ground is a plain warm
 off-white #FAF9F7 plane with no court lines or markings, only one long
 simple shadow stretching from the player. Flat geometric shapes, subtle
 grain, no gradients, no outlines, no extra objects. Left half mostly calm

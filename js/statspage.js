@@ -1,5 +1,5 @@
 // js/statspage.js
-// 統計分頁（#/stats）：週目標卡 → 期間切換 → 命中率趨勢 → 熱力格日曆（固定近26週）
+// 統計分頁（#/stats）：週目標卡 → 期間切換 → 命中率趨勢 → 熱力格日曆（固定近 26 週）
 // → 全期熱區 → 疲勞趨勢。比照 history.js／session.js 的 UI 模組慣例：export mount/unmount。
 
 import * as store from './store.js';
@@ -9,16 +9,16 @@ import {
 } from './stats.js';
 
 const PERIODS = [
-  { key: '7', label: '7天', days: 7 },
-  { key: '30', label: '30天', days: 30 },
+  { key: '7', label: '7 天', days: 7 },
+  { key: '30', label: '30 天', days: 30 },
   { key: 'all', label: '全部', days: null },
 ];
 
 const TYPE_CHIPS = [
   { key: 'all', label: '全部', type: null },
-  { key: '2pt', label: '2分', type: '2pt' },
-  { key: '3pt', label: '3分', type: '3pt' },
-  { key: 'deep3', label: '深3', type: 'deep3' },
+  { key: '2pt', label: '2 分', type: '2pt' },
+  { key: '3pt', label: '3 分', type: '3pt' },
+  { key: 'deep3', label: '深 3', type: 'deep3' },
   { key: 'ft', label: '罰球', type: 'ft' },
 ];
 
@@ -289,7 +289,7 @@ function renderHeatCalendar(cells, weeks, now) {
   const colsHtml = columns
     .map((col) => {
       const [y, m] = col[0].date.split('-').map(Number);
-      const monthLabel = m !== prevMonth ? `${m}月` : '';
+      const monthLabel = m !== prevMonth ? `${m} 月` : '';
       prevMonth = m;
 
       const cellsHtml = col

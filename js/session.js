@@ -1205,7 +1205,7 @@ export function renderSessionSummary(container, session, allSessions, opts = {})
       const diff = p - avg;
       const sign = diff > 0 ? '↑' : diff < 0 ? '↓' : '持平';
       const cls = diff > 0 ? 'stat-diff--up' : diff < 0 ? 'stat-diff--down' : 'stat-diff--flat';
-      diffHtml = `<span class="stat-diff ${cls}">${sign}${diff === 0 ? '' : ' ' + Math.abs(diff) + '%'}（近7日均 ${avg}%）</span>`;
+      diffHtml = `<span class="stat-diff ${cls}">${sign}${diff === 0 ? '' : ' ' + Math.abs(diff) + '%'}（近 7 日均 ${avg}%）</span>`;
     }
     return `
       <li class="type-row">

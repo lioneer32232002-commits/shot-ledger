@@ -25,7 +25,7 @@ const COLORS = {
 
 const FONT_FAMILY = '-apple-system, "Segoe UI", "Noto Sans TC", sans-serif';
 const TYPE_OPTIONS = ['2pt', '3pt', 'deep3', 'ft'];
-const TYPE_LABEL = { '2pt': '2分', '3pt': '3分', deep3: '深3', ft: '罰球' };
+const TYPE_LABEL = { '2pt': '2 分', '3pt': '3 分', deep3: '深 3', ft: '罰球' };
 
 function variantLabel(variant) {
   if (variant === 'full') return '完整';

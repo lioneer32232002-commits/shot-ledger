@@ -167,7 +167,7 @@ function renderSettings() {
           </ul>
           <p class="about-card__note">Jeremy Lin 不在射手等級之列，但作為起手模式保留——切入型後衛的中距＋罰球基本功，正好是階梯第一關的難度定位。</p>
           <p class="about-card__note">Curry / Jeremy Lin / Klay 等訓練菜單，皆為依公開報導風格改編的靈感版本，與當事人無關、非官方授權內容。</p>
-          <p class="about-card__note">球員生涯數據（NBA 年份、FG%／3分%／罰球%／三分命中數）以 StatMuse 與 ESPN 雙來源交叉核對，截至 2025-26 賽季；Lillard 因 2025-26 整季傷停，數據累計至 2024-25。</p>
+          <p class="about-card__note">球員生涯數據（NBA 年份、FG%／3 分%／罰球%／三分命中數）以 StatMuse 與 ESPN 雙來源交叉核對，截至 2025-26 賽季；Lillard 因 2025-26 整季傷停，數據累計至 2024-25。</p>
         </div>
       </details>
 
