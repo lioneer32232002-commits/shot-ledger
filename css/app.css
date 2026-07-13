@@ -361,7 +361,8 @@ a {
   font-weight: 800;
 }
 
-.today-summary__lifetime {
+.today-summary__lifetime,
+.today-summary__weekly {
   font-size: var(--text-xs);
   font-weight: 600;
   opacity: 0.85;
@@ -379,7 +380,8 @@ a {
   justify-content: center;
 }
 
-.today-summary--empty .today-summary__lifetime {
+.today-summary--empty .today-summary__lifetime,
+.today-summary--empty .today-summary__weekly {
   color: var(--color-text-faint);
   opacity: 1;
   text-align: center;
@@ -994,10 +996,20 @@ a {
 
 .summary__actions {
   display: flex;
+  flex-direction: column;
   gap: var(--space-3);
 }
 
-.summary__actions .btn--primary {
+.summary__actions-share {
+  width: 100%;
+}
+
+.summary__actions-row {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.summary__actions-row .btn {
   flex: 1;
 }
 
@@ -2090,6 +2102,391 @@ a {
 }
 
 /* ---------------------------------------------------------------------- */
+/* M2：統計分頁共用元件（區塊卡 / 期間切換 / chip 列 / 空狀態）                */
+/* ---------------------------------------------------------------------- */
+
+.page--stats {
+  gap: var(--space-4);
+}
+
+.stats-block {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.stats-subsection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.stats-subtitle {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-text-muted);
+}
+
+.stats-empty-note {
+  font-size: var(--text-sm);
+  color: var(--color-text-faint);
+  text-align: center;
+  padding: var(--space-4) var(--space-2);
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* 期間切換（7天 / 30天 / 全部）：與 .input-mode-toggle 同款視覺，獨立命名避免耦合輸入模式元件 */
+.segmented {
+  display: flex;
+  background: var(--color-surface-sunken);
+  border-radius: var(--radius-full);
+  padding: 3px;
+  gap: 2px;
+}
+
+.segmented__btn {
+  flex: 1;
+  min-height: 40px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  transition: all var(--transition-fast);
+}
+
+.segmented__btn.is-active {
+  background: var(--color-surface);
+  color: var(--color-accent-dark);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ---------------------------------------------------------------------- */
+/* M2：命中率趨勢／疲勞趨勢共用的手繪 SVG 折線                                */
+/* ---------------------------------------------------------------------- */
+
+.pct-chart {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.pct-chart__line {
+  stroke: var(--color-accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.pct-chart__dot {
+  fill: var(--color-accent);
+  stroke: var(--color-surface);
+  stroke-width: 1.5;
+}
+
+.pct-chart__grid-line {
+  stroke: var(--color-border);
+  stroke-width: 1;
+}
+
+.pct-chart__grid-label,
+.pct-chart__x-label {
+  font-size: 9px;
+  fill: var(--color-text-faint);
+}
+
+.round-chart__band {
+  opacity: 0.6;
+}
+
+.round-chart__band--early {
+  fill: var(--color-accent-tint);
+}
+
+.round-chart__band--late {
+  fill: var(--color-surface-sunken);
+}
+
+.fatigue-summary {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.stats-heat-summary {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+/* ---------------------------------------------------------------------- */
+/* M2：熱力格日曆（GitHub 式，固定近 26 週，自身可橫向捲動）                    */
+/* ---------------------------------------------------------------------- */
+
+.heat-cal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.heat-cal__scroll {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+
+.heat-cal__col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+
+.heat-cal__month {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--color-text-faint);
+  height: 12px;
+}
+
+.heat-cal__days {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.heat-cal__cell {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--color-surface-sunken);
+}
+
+.heat-cal__cell[data-level="1"] {
+  background: color-mix(in srgb, var(--color-accent) 30%, var(--color-surface-sunken));
+}
+
+.heat-cal__cell[data-level="2"] {
+  background: color-mix(in srgb, var(--color-accent) 62%, var(--color-surface-sunken));
+}
+
+.heat-cal__cell[data-level="3"] {
+  background: var(--color-accent);
+}
+
+.heat-cal__cell.is-today {
+  outline: 1px solid var(--color-accent-dark);
+  outline-offset: -1px;
+}
+
+.heat-cal__cell.is-future {
+  background: transparent;
+}
+
+.heat-cal__legend {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  font-size: var(--text-xs);
+  color: var(--color-text-faint);
+}
+
+.heat-cal__legend-cell {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--color-surface-sunken);
+}
+
+.heat-cal__legend-cell[data-level="1"] {
+  background: color-mix(in srgb, var(--color-accent) 30%, var(--color-surface-sunken));
+}
+
+.heat-cal__legend-cell[data-level="2"] {
+  background: color-mix(in srgb, var(--color-accent) 62%, var(--color-surface-sunken));
+}
+
+.heat-cal__legend-cell[data-level="3"] {
+  background: var(--color-accent);
+}
+
+/* ---------------------------------------------------------------------- */
+/* M2：週目標卡                                                            */
+/* ---------------------------------------------------------------------- */
+
+.goal-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4) var(--space-5);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.goal-card--empty {
+  align-items: center;
+  text-align: center;
+}
+
+.goal-card__prompt {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.goal-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.goal-card__title {
+  font-size: var(--text-sm);
+  font-weight: 800;
+  color: var(--color-text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.goal-card__edit {
+  min-height: 40px;
+  padding: 0 var(--space-3);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--color-accent-dark);
+  border-radius: var(--radius-full);
+}
+
+.goal-card__edit:active {
+  background: var(--color-accent-tint);
+}
+
+.goal-card__track {
+  height: 10px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-sunken);
+  overflow: hidden;
+}
+
+.goal-card__fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--color-accent);
+  transition: width var(--transition-med);
+}
+
+.goal-card.is-achieved .goal-card__fill {
+  background: var(--color-success);
+}
+
+.goal-card__line {
+  font-size: var(--text-md);
+  font-weight: 800;
+}
+
+.goal-card.is-achieved .goal-card__line {
+  color: var(--color-success);
+}
+
+.goal-card__days {
+  font-size: var(--text-xs);
+  color: var(--color-text-faint);
+}
+
+.goal-quick-options {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.goal-quick-btn {
+  flex: 1;
+  min-height: var(--touch-min);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+  border: 1.5px solid var(--color-border);
+  font-weight: 700;
+  transition: all var(--transition-fast);
+}
+
+.goal-quick-btn.is-active,
+.goal-quick-btn:active {
+  background: var(--color-accent-tint);
+  border-color: var(--color-accent);
+  color: var(--color-accent-dark);
+}
+
+.goal-custom-row {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* ---------------------------------------------------------------------- */
+/* M2：成績分享卡（全螢幕 sheet：canvas 預覽 + 分享／下載／關閉）              */
+/* ---------------------------------------------------------------------- */
+
+.share-sheet-backdrop {
+  align-items: stretch;
+}
+
+.share-sheet {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  border-radius: 0;
+  height: 100dvh;
+  max-height: 100dvh;
+  justify-content: space-between;
+}
+
+.share-sheet__preview {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--color-surface-sunken);
+  border-radius: var(--radius-lg);
+}
+
+.share-sheet__preview img {
+  width: 100%;
+  height: auto;
+  max-height: 100%;
+  display: block;
+  border-radius: var(--radius-lg);
+  object-fit: contain;
+}
+
+.share-sheet__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.share-sheet__actions .btn {
+  width: 100%;
+}
+
+/* ---------------------------------------------------------------------- */
 /* 動效尊重 prefers-reduced-motion                                        */
 /* ---------------------------------------------------------------------- */
 
@@ -2106,6 +2503,7 @@ a {
   .seq-ball,
   .rule-bar__fill,
   .curve-bar__fill,
+  .goal-card__fill,
   .celebration,
   .celebration__card,
   .confetti-piece {

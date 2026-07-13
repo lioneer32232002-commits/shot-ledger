@@ -339,3 +339,164 @@ export function lifetimeTotals(sessions) {
   }
   return { att, mk };
 }
+
+// ---------------------------------------------------------------------------
+// M2：統計分頁（期間篩選 / 命中率趨勢 / 熱力格日曆 / 疲勞趨勢彙總）＋ 週目標
+// ---------------------------------------------------------------------------
+
+function pad2(n) {
+  return String(n).padStart(2, '0');
+}
+
+/** 本地時區 YYYY-MM-DD 字串。 */
+function localDayKey(d) {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+/** 該日期所在週的週一（本地時區、時分秒歸零），週日算前一週的最後一天。 */
+function mondayOf(d) {
+  const midnight = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const dow = midnight.getDay(); // 0=週日 ... 6=週六
+  const diffToMonday = dow === 0 ? -6 : 1 - dow;
+  midnight.setDate(midnight.getDate() + diffToMonday);
+  return midnight;
+}
+
+/**
+ * 篩出「完賽節」（endedAt !== null）且 startedAt 落在 (now-days*24h, now] 的 sessions。
+ * days 為 null 表示不設下限（但仍要求 endedAt !== null）。
+ * @param {Array} sessions
+ * @param {number|null} days
+ * @param {string|Date} now
+ * @returns {Array}
+ */
+export function sessionsInRange(sessions, days, now) {
+  const nowMs = new Date(now).getTime();
+  const cutoffMs = days === null || days === undefined ? -Infinity : nowMs - days * 24 * 60 * 60 * 1000;
+  return (sessions || []).filter((s) => {
+    if (!s || s.endedAt === null || s.endedAt === undefined) return false;
+    const startedMs = new Date(s.startedAt).getTime();
+    if (Number.isNaN(startedMs)) return false;
+    return startedMs > cutoffMs && startedMs <= nowMs;
+  });
+}
+
+/**
+ * 依日／週分組的命中率序列，只回傳「有出手」的 bucket，依 key 升冪排序。
+ * @param {Array} sessions
+ * @param {{type:(string|null), bucket:('day'|'week'), now:(string|Date), days:(number|null)}} opts
+ * @returns {Array<{key:string, att:number, mk:number, pct:(number|null)}>}
+ */
+export function pctSeries(sessions, opts) {
+  const { type = null, bucket = 'day', now, days = null } = opts || {};
+  const inRange = sessionsInRange(sessions, days, now);
+  const buckets = new Map();
+
+  for (const s of inRange) {
+    const started = new Date(s.startedAt);
+    const key = bucket === 'week' ? localDayKey(mondayOf(started)) : localDayKey(started);
+    for (const r of s.rounds || []) {
+      if (type !== null && r.type !== type) continue;
+      const att = Number(r.attempts) || 0;
+      const mk = Number(r.makes) || 0;
+      if (!buckets.has(key)) buckets.set(key, { att: 0, mk: 0 });
+      const b = buckets.get(key);
+      b.att += att;
+      b.mk += mk;
+    }
+  }
+
+  return Array.from(buckets.entries())
+    .filter(([, v]) => v.att > 0)
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([key, v]) => ({ key, att: v.att, mk: v.mk, pct: pct(v.mk, v.att) }));
+}
+
+/**
+ * 最近 weeks 週（含本週）的熱力格資料，依時間升冪，長度固定為 weeks*7。
+ * 自「now 當週週一」往回推 weeks-1 週的週一開始，到 now 當週週日為止；未來日 att 一律 0。
+ * @param {Array} sessions
+ * @param {string|Date} now
+ * @param {number} weeks
+ * @returns {Array<{date:string, att:number}>}
+ */
+export function calendarCells(sessions, now, weeks) {
+  const nowDate = new Date(now);
+  const thisMonday = mondayOf(nowDate);
+  const startMonday = new Date(thisMonday);
+  startMonday.setDate(startMonday.getDate() - (weeks - 1) * 7);
+
+  const attByDay = new Map();
+  for (const s of sessions || []) {
+    const started = new Date(s.startedAt);
+    if (Number.isNaN(started.getTime())) continue;
+    const key = localDayKey(started);
+    let att = 0;
+    for (const r of s.rounds || []) att += Number(r.attempts) || 0;
+    attByDay.set(key, (attByDay.get(key) || 0) + att);
+  }
+
+  const todayKey = localDayKey(nowDate);
+  const cells = [];
+  const cursor = new Date(startMonday);
+  for (let i = 0; i < weeks * 7; i++) {
+    const key = localDayKey(cursor);
+    const isFuture = key > todayKey;
+    cells.push({ date: key, att: isFuture ? 0 : attByDay.get(key) || 0 });
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return cells;
+}
+
+/**
+ * 跨節輪次平均命中率曲線（att/mk 先相加再算 pct，非各節 pct 的平均）。
+ * 只回傳到「至少 2 節包含該輪次」的最長輪次為止——輪次的樣本節數只會隨輪次增加而持平或變少，
+ * 所以第一個跌破 2 節的輪次就是截止點，該輪起（含）全部砍掉，避免單節尾巴造成雜訊。
+ * @param {Array} sessions
+ * @returns {Array<{round:number, att:number, mk:number, pct:(number|null)}>}
+ */
+export function avgRoundCurve(sessions) {
+  const perRound = [];
+  for (const s of sessions || []) {
+    (s.rounds || []).forEach((r, i) => {
+      if (!perRound[i]) perRound[i] = { att: 0, mk: 0, count: 0 };
+      perRound[i].att += Number(r.attempts) || 0;
+      perRound[i].mk += Number(r.makes) || 0;
+      perRound[i].count += 1;
+    });
+  }
+
+  let cutoff = 0;
+  for (let i = 0; i < perRound.length; i++) {
+    if (perRound[i] && perRound[i].count >= 2) cutoff = i + 1;
+    else break;
+  }
+
+  return perRound.slice(0, cutoff).map((r, i) => ({ round: i + 1, att: r.att, mk: r.mk, pct: pct(r.mk, r.att) }));
+}
+
+/**
+ * 本週（週一 00:00 起，本地時區）累計出手／命中，含進行中的節。
+ * @param {Array} sessions
+ * @param {string|Date} now
+ * @returns {{att:number, mk:number}}
+ */
+export function weekAttempts(sessions, now) {
+  const nowDate = new Date(now);
+  const monday = mondayOf(nowDate);
+  const mondayMs = monday.getTime();
+  const nextMondayMs = mondayMs + 7 * 24 * 60 * 60 * 1000;
+
+  let att = 0;
+  let mk = 0;
+  for (const s of sessions || []) {
+    const startedMs = new Date(s.startedAt).getTime();
+    if (Number.isNaN(startedMs)) continue;
+    if (startedMs < mondayMs || startedMs >= nextMondayMs) continue;
+    for (const r of s.rounds || []) {
+      att += Number(r.attempts) || 0;
+      mk += Number(r.makes) || 0;
+    }
+  }
+  return { att, mk };
+}

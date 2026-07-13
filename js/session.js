@@ -9,8 +9,9 @@ import {
   aggregate, pct, recentTypeAvg, todaySummary,
   roundCurve, earlyLateSplit, evaluatePassRule, sessionPct,
   isChallengeEligible, pctGapToShots, typeAvgAllTime, computeBadges,
-  equivalentTier, lifetimeTotals,
+  equivalentTier, lifetimeTotals, weekAttempts,
 } from './stats.js';
+import { openShareSheet } from './sharecard.js';
 
 const TYPE_OPTIONS = ['2pt', '3pt', 'deep3', 'ft'];
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
@@ -353,6 +354,14 @@ function renderLifetimeLine(cls) {
   return `<p class="${cls} nowrap">${line}</p>`;
 }
 
+/** 已設定週目標時才顯示這行，未設定不推銷（比照週目標卡邏輯，週一為一週之始）。 */
+function renderWeeklyGoalLine(cls) {
+  const goal = state.settings.weeklyGoal;
+  if (!goal) return '';
+  const wk = weekAttempts(state.sessions, new Date());
+  return `<p class="${cls} nowrap">本週 ${wk.att}/${goal} 球</p>`;
+}
+
 function renderQuickRestartHtml() {
   const last = lastFinishedSession();
   if (!last) return '';
@@ -380,10 +389,12 @@ function renderHome() {
              <span class="today-summary__pct nowrap">${todayPct}%</span>
            </div>
            ${renderLifetimeLine('today-summary__lifetime')}
+           ${renderWeeklyGoalLine('today-summary__weekly')}
          </div>`
       : `<div class="today-summary today-summary--empty">
            <div class="today-summary__row"><span>今天還沒開始投，選個模式開始練習吧。</span></div>
            ${renderLifetimeLine('today-summary__lifetime')}
+           ${renderWeeklyGoalLine('today-summary__weekly')}
          </div>`;
 
   const { ladder, unlockedIds, passedIds, currentMenu } = currentLadderState();
@@ -1003,6 +1014,7 @@ function renderSummaryView() {
   const page = root.querySelector('.page--summary');
   renderSessionSummary(page, activeSession, state.sessions, {
     justFinished: justFinishedResult,
+    state,
     onDone: () => {
       activeSession = null;
       justFinishedResult = null;
@@ -1158,10 +1170,12 @@ function renderChallengeSection(menu, session, justFinished) {
  * @param {HTMLElement} container
  * @param {Object} session
  * @param {Array} allSessions 用來算近 7 日同球種平均
- * @param {{onDone?: Function, onDelete?: Function, justFinished?: Object|null}} [opts]
+ * @param {{onDone?: Function, onDelete?: Function, justFinished?: Object|null, state?: Object}} [opts]
+ *   opts.state：完整 store 狀態，分享成績卡要讀 progress.best 判斷「個人最佳」徽章；
+ *   呼叫端各自傳自己 store.load() 出來的那份，不依賴本檔案的模組層級 state（history.js 是另一份）。
  */
 export function renderSessionSummary(container, session, allSessions, opts = {}) {
-  const { onDone, onDelete, justFinished } = opts;
+  const { onDone, onDelete, justFinished, state: cardState } = opts;
   const menu = getMenu(session.mode);
   const agg = aggregate(session.rounds);
   const totalPct = pct(agg.total.mk, agg.total.att);
@@ -1223,14 +1237,21 @@ export function renderSessionSummary(container, session, allSessions, opts = {})
       ${equivalentHtml}
 
       <div class="summary__actions">
-        ${onDelete ? `<button class="btn btn--ghost-danger" data-summary-action="delete">刪除此節</button>` : ''}
-        ${onDone ? `<button class="btn btn--primary" data-summary-action="done">完成</button>` : ''}
+        <button class="btn btn--secondary summary__actions-share" data-summary-action="share">分享成績卡</button>
+        <div class="summary__actions-row">
+          ${onDelete ? `<button class="btn btn--ghost-danger" data-summary-action="delete">刪除此節</button>` : ''}
+          ${onDone ? `<button class="btn btn--primary" data-summary-action="done">完成</button>` : ''}
+        </div>
       </div>
     </div>
   `;
 
   renderCourt(container.querySelector('#summary-court'), { mode: 'heat', heat: agg.bySpot });
 
+  const shareBtn = container.querySelector('[data-summary-action="share"]');
+  if (shareBtn) {
+    shareBtn.addEventListener('click', () => openShareSheet(session, cardState));
+  }
   if (onDone) {
     const btn = container.querySelector('[data-summary-action="done"]');
     if (btn) btn.addEventListener('click', onDone);

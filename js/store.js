@@ -2,7 +2,7 @@
 // localStorage 讀寫、schema v1→v2 migration、匯出/匯入/CSV、挑戰進度（progress）存取。
 
 const KEY = 'shotledger_v1';
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 function emptyProgress() {
   return { unlocked: ['lin'], best: {}, badges: [] };
@@ -12,7 +12,7 @@ function emptyState() {
   return {
     schema: SCHEMA_VERSION,
     sessions: [],
-    settings: { lastBackupAt: null, inputMode: 'quick' },
+    settings: { lastBackupAt: null, inputMode: 'quick', weeklyGoal: null },
     progress: emptyProgress(),
   };
 }
@@ -42,13 +42,19 @@ function migrate(data) {
     data.schema = 2;
   }
 
-  // 保底：不管資料是從哪個版本進來的，progress / settings.inputMode 形狀都要正確。
+  if (data.schema < 3) {
+    data.settings.weeklyGoal = null;
+    data.schema = 3;
+  }
+
+  // 保底：不管資料是從哪個版本進來的，progress / settings.inputMode / settings.weeklyGoal 形狀都要正確。
   if (!data.progress || typeof data.progress !== 'object') data.progress = emptyProgress();
   if (!Array.isArray(data.progress.unlocked)) data.progress.unlocked = ['lin'];
   if (!data.progress.unlocked.includes('lin')) data.progress.unlocked.push('lin');
   if (!data.progress.best || typeof data.progress.best !== 'object') data.progress.best = {};
   if (!Array.isArray(data.progress.badges)) data.progress.badges = [];
   if (!('inputMode' in data.settings)) data.settings.inputMode = 'quick';
+  if (!('weeklyGoal' in data.settings)) data.settings.weeklyGoal = null;
 
   return data;
 }
@@ -178,6 +184,12 @@ export function addBadge(state, badgeId) {
 /** 設定逐球／快速輸入偏好（存進 settings，跨節記住）。 */
 export function setInputMode(state, mode) {
   state.settings.inputMode = mode === 'seq' ? 'seq' : 'quick';
+  save(state);
+}
+
+/** 設定每週投量目標；n 為正整數目標值，null／非正整數一律視為關閉目標。 */
+export function setWeeklyGoal(state, n) {
+  state.settings.weeklyGoal = Number.isInteger(n) && n > 0 ? n : null;
   save(state);
 }
 

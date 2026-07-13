@@ -6,6 +6,7 @@ import {
   roundCurve, earlyLateSplit, evaluatePassRule, sessionPct,
   isChallengeEligible, pctGapToShots,
   equivalentTier, lifetimeTotals,
+  sessionsInRange, pctSeries, calendarCells, avgRoundCurve, weekAttempts,
 } from '../js/stats.js';
 
 let passed = 0;
@@ -448,6 +449,226 @@ test('加總所有節（含自由練習、含尚未結束的節）的所有輪�
     { id: 's3', mode: 'world', endedAt: null, rounds: [{ type: 'ft', attempts: 3, makes: 3 }] },
   ];
   assert.deepEqual(lifetimeTotals(sessions), { att: 18, mk: 11 });
+});
+
+console.log('sessionsInRange()');
+
+test('進行中節（endedAt=null）一律排除', () => {
+  const sessions = [{ id: 's1', endedAt: null, startedAt: now }];
+  assert.deepEqual(sessionsInRange(sessions, 7, now), []);
+});
+
+test('邊界：剛好 N 天前不計入，晚一點點才計入', () => {
+  const cutoffIso = new Date(new Date(now).getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const justInsideIso = new Date(new Date(cutoffIso).getTime() + 1000).toISOString();
+  const sessions = [
+    { id: 's_at', endedAt: cutoffIso, startedAt: cutoffIso },
+    { id: 's_in', endedAt: justInsideIso, startedAt: justInsideIso },
+  ];
+  assert.deepEqual(sessionsInRange(sessions, 7, now).map((s) => s.id), ['s_in']);
+});
+
+test('days=null（全部）不設下限，但仍要求 endedAt!==null', () => {
+  const sessions = [
+    { id: 's_old', endedAt: '2020-01-01T00:00:00.000Z', startedAt: '2020-01-01T00:00:00.000Z' },
+    { id: 's_inprogress', endedAt: null, startedAt: now },
+  ];
+  assert.deepEqual(sessionsInRange(sessions, null, now).map((s) => s.id), ['s_old']);
+});
+
+test('超過 now 的未來節不計入', () => {
+  const future = new Date(new Date(now).getTime() + 1000).toISOString();
+  const sessions = [{ id: 's_future', endedAt: future, startedAt: future }];
+  assert.deepEqual(sessionsInRange(sessions, 7, now), []);
+});
+
+console.log('pctSeries()');
+
+test('day bucket：依本地年月日分組，只回有出手的日子，依日期升冪', () => {
+  const d1 = new Date(now);
+  d1.setDate(d1.getDate() - 2);
+  const d2 = new Date(now);
+  d2.setDate(d2.getDate() - 1);
+  const sessions = [
+    { id: 's1', endedAt: d1.toISOString(), startedAt: d1.toISOString(), rounds: [{ type: '3pt', attempts: 10, makes: 4 }] },
+    { id: 's2', endedAt: d2.toISOString(), startedAt: d2.toISOString(), rounds: [{ type: '3pt', attempts: 10, makes: 6 }] },
+  ];
+  const series = pctSeries(sessions, { type: null, bucket: 'day', now, days: 7 });
+  assert.equal(series.length, 2);
+  assert.deepEqual(series.map((p) => p.pct), [40, 60]);
+  assert.ok(series[0].key < series[1].key); // 依日期升冪
+});
+
+test('type 篩選：只計指定球種；type=null 計全部球種', () => {
+  const sessions = [
+    { id: 's1', endedAt: now, startedAt: now, rounds: [
+      { type: '2pt', attempts: 10, makes: 5 },
+      { type: '3pt', attempts: 10, makes: 3 },
+    ] },
+  ];
+  const only3pt = pctSeries(sessions, { type: '3pt', bucket: 'day', now, days: 7 });
+  assert.deepEqual(only3pt.map((p) => ({ att: p.att, mk: p.mk })), [{ att: 10, mk: 3 }]);
+  const all = pctSeries(sessions, { type: null, bucket: 'day', now, days: 7 });
+  assert.deepEqual(all.map((p) => ({ att: p.att, mk: p.mk })), [{ att: 20, mk: 8 }]);
+});
+
+test('week bucket：週一為一週之始，同週不同天分在同一個 bucket', () => {
+  const base = new Date(now);
+  const monday = new Date(base.getFullYear(), base.getMonth(), base.getDate());
+  const dow = monday.getDay();
+  monday.setDate(monday.getDate() + (dow === 0 ? -6 : 1 - dow));
+  const wednesday = new Date(monday);
+  wednesday.setDate(wednesday.getDate() + 2);
+
+  const sessions = [
+    { id: 's_mon', endedAt: monday.toISOString(), startedAt: monday.toISOString(), rounds: [{ type: 'ft', attempts: 10, makes: 8 }] },
+    { id: 's_wed', endedAt: wednesday.toISOString(), startedAt: wednesday.toISOString(), rounds: [{ type: 'ft', attempts: 10, makes: 2 }] },
+  ];
+  const series = pctSeries(sessions, { type: 'ft', bucket: 'week', now, days: null });
+  assert.equal(series.length, 1);
+  assert.deepEqual({ att: series[0].att, mk: series[0].mk }, { att: 20, mk: 10 });
+});
+
+test('沒有出手的 bucket 不會出現在結果中', () => {
+  const sessions = [{ id: 's1', endedAt: now, startedAt: now, rounds: [] }];
+  assert.deepEqual(pctSeries(sessions, { type: null, bucket: 'day', now, days: 7 }), []);
+});
+
+test('跨月：不同月份的日子各自成一個 bucket', () => {
+  const monthAgo = new Date(new Date(now).getTime() - 35 * 24 * 60 * 60 * 1000);
+  const sessions = [
+    { id: 's_old', endedAt: monthAgo.toISOString(), startedAt: monthAgo.toISOString(), rounds: [{ type: 'ft', attempts: 10, makes: 5 }] },
+    { id: 's_new', endedAt: now, startedAt: now, rounds: [{ type: 'ft', attempts: 10, makes: 5 }] },
+  ];
+  const series = pctSeries(sessions, { type: 'ft', bucket: 'day', now, days: null });
+  assert.equal(series.length, 2);
+});
+
+console.log('calendarCells()');
+
+function parseLocalDateKey(key) {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+test('長度固定為 weeks*7', () => {
+  assert.equal(calendarCells([], now, 26).length, 26 * 7);
+});
+
+test('第一格是「now 當週週一」往回推 weeks-1 週的週一', () => {
+  const cells = calendarCells([], now, 3);
+  assert.equal(parseLocalDateKey(cells[0].date).getDay(), 1); // 週一
+});
+
+test('每一列的第一格都是週一（依序 7 天一組）', () => {
+  const cells = calendarCells([], now, 4);
+  for (let w = 0; w < 4; w++) {
+    assert.equal(parseLocalDateKey(cells[w * 7].date).getDay(), 1);
+  }
+});
+
+test('依時間升冪排列，最後一格是 now 當週的週日', () => {
+  const cells = calendarCells([], now, 2);
+  assert.equal(parseLocalDateKey(cells[cells.length - 1].date).getDay(), 0); // 週日
+});
+
+test('未來的日子 att 固定為 0', () => {
+  const cells = calendarCells([], now, 1);
+  const nowDate = new Date(now);
+  const todayKey = `${nowDate.getFullYear()}-${String(nowDate.getMonth() + 1).padStart(2, '0')}-${String(nowDate.getDate()).padStart(2, '0')}`;
+  const todayIdx = cells.findIndex((c) => c.date === todayKey);
+  assert.ok(todayIdx !== -1);
+  for (let i = todayIdx + 1; i < cells.length; i++) {
+    assert.equal(cells[i].att, 0);
+  }
+});
+
+test('當日出手數正確加總進對應格子', () => {
+  const sessions = [
+    { id: 's1', endedAt: now, startedAt: now, rounds: [{ attempts: 10, makes: 5 }, { attempts: 5, makes: 2 }] },
+  ];
+  const cells = calendarCells(sessions, now, 1);
+  const nowDate = new Date(now);
+  const todayKey = `${nowDate.getFullYear()}-${String(nowDate.getMonth() + 1).padStart(2, '0')}-${String(nowDate.getDate()).padStart(2, '0')}`;
+  assert.equal(cells.find((c) => c.date === todayKey).att, 15);
+});
+
+test('跨年：weeks 夠大時往回推可以跨到前一年，日期字串格式與升冪順序仍正確', () => {
+  const cells = calendarCells([], '2026-01-05T12:00:00.000Z', 10);
+  assert.equal(cells.length, 70);
+  assert.ok(/^\d{4}-\d{2}-\d{2}$/.test(cells[0].date));
+  assert.ok(cells[0].date < cells[cells.length - 1].date);
+});
+
+console.log('avgRoundCurve()');
+
+test('空陣列回傳空陣列', () => {
+  assert.deepEqual(avgRoundCurve([]), []);
+});
+
+test('att/mk 是加權彙總（相加後才算 pct），不是各節 pct 的平均', () => {
+  const sessions = [
+    { rounds: [{ attempts: 10, makes: 5 }] }, // 50%
+    { rounds: [{ attempts: 20, makes: 4 }] }, // 20%
+  ];
+  // 加權：(5+4)/(10+20)=30%；若誤用平均 (50+20)/2=35% 就會測出錯
+  const curve = avgRoundCurve(sessions);
+  assert.deepEqual(curve, [{ round: 1, att: 30, mk: 9, pct: 30 }]);
+});
+
+test('樣本數 <2 節的尾巴輪次會被截掉', () => {
+  const sessions = [
+    { rounds: [{ attempts: 10, makes: 5 }, { attempts: 10, makes: 5 }, { attempts: 10, makes: 5 }] }, // 3 輪
+    { rounds: [{ attempts: 10, makes: 5 }, { attempts: 10, makes: 5 }] }, // 2 輪
+  ];
+  // 第1、2輪都有 2 節樣本，第3輪只有 1 節樣本 → 截掉
+  const curve = avgRoundCurve(sessions);
+  assert.deepEqual(curve.map((c) => c.round), [1, 2]);
+});
+
+test('只有 1 節時整條曲線都被截掉（每輪樣本數都是 1）', () => {
+  const sessions = [{ rounds: [{ attempts: 10, makes: 5 }, { attempts: 10, makes: 5 }] }];
+  assert.deepEqual(avgRoundCurve(sessions), []);
+});
+
+console.log('weekAttempts()');
+
+function mondayOfForTest(iso) {
+  const d = new Date(iso);
+  const midnight = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const dow = midnight.getDay();
+  midnight.setDate(midnight.getDate() + (dow === 0 ? -6 : 1 - dow));
+  return midnight;
+}
+
+test('週一 00:00 起算：週一 00:00:00 與週日 23:59:59 都算本週', () => {
+  const monday = mondayOfForTest(now);
+  const sundayNight = new Date(monday);
+  sundayNight.setDate(sundayNight.getDate() + 6);
+  sundayNight.setHours(23, 59, 59, 999);
+
+  const sessions = [
+    { startedAt: monday.toISOString(), rounds: [{ attempts: 10, makes: 5 }] },
+    { startedAt: sundayNight.toISOString(), rounds: [{ attempts: 4, makes: 1 }] },
+  ];
+  assert.deepEqual(weekAttempts(sessions, sundayNight), { att: 14, mk: 6 });
+});
+
+test('上週日深夜（本週一 00:00 前 1 毫秒）不計入本週', () => {
+  const monday = mondayOfForTest(now);
+  const justBefore = new Date(monday.getTime() - 1);
+  const sessions = [{ startedAt: justBefore.toISOString(), rounds: [{ attempts: 10, makes: 5 }] }];
+  assert.deepEqual(weekAttempts(sessions, now), { att: 0, mk: 0 });
+});
+
+test('進行中的節（endedAt 為 null）也計入', () => {
+  const monday = mondayOfForTest(now);
+  const sessions = [{ startedAt: monday.toISOString(), endedAt: null, rounds: [{ attempts: 10, makes: 5 }] }];
+  assert.deepEqual(weekAttempts(sessions, now), { att: 10, mk: 5 });
+});
+
+test('沒有任何節回傳 {att:0, mk:0}', () => {
+  assert.deepEqual(weekAttempts([], now), { att: 0, mk: 0 });
 });
 
 console.log(`\n${passed} 個測試通過`);

@@ -113,6 +113,7 @@ function renderDetail() {
   });
 
   renderSessionSummary(root.querySelector('#detail-mount'), session, state.sessions, {
+    state,
     onDelete: () => {
       if (!confirmDelete) {
         confirmDelete = true;

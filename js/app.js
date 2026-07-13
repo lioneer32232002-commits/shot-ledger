@@ -3,15 +3,16 @@
 
 import * as store from './store.js';
 import * as trainPage from './session.js';
+import * as statsPage from './statspage.js';
 import * as historyPage from './history.js';
 import { ladderMenus } from './menus.js';
 import { BADGE_LABEL, formatThousands } from './session.js';
 import { lifetimeTotals, pct } from './stats.js';
 
-const VALID_TABS = ['train', 'history', 'settings'];
+const VALID_TABS = ['train', 'stats', 'history', 'settings'];
 
 const settingsPage = { mount: mountSettings, unmount: unmountSettings };
-const routes = { train: trainPage, history: historyPage, settings: settingsPage };
+const routes = { train: trainPage, stats: statsPage, history: historyPage, settings: settingsPage };
 
 const view = document.getElementById('view');
 const tabBar = document.getElementById('tab-bar');
@@ -171,7 +172,7 @@ function renderSettings() {
       </details>
 
       <footer class="settings-footer">
-        <p class="settings-footer__app">Shot Ledger　版本 M1.6</p>
+        <p class="settings-footer__app">Shot Ledger　版本 M2</p>
       </footer>
     </div>
   `;
