@@ -198,6 +198,21 @@ function lockIconSvg() {
   </svg>`;
 }
 
+// SHOT 圓鈕的籃球條紋（SPEC M4.2 §2）：一橫、一豎、左右兩道側弧，四條線都用
+// Q 二次貝茲曲線，控制點刻意落在圓內（凸包保證曲線不出圓），不需要另外裁切。
+// viewBox 0 0 100 100 對齊圓半徑 50，可隨按鈕實際尺寸縮放。絕對定位鋪滿鈕面、
+// pointer-events:none、z 序在「SHOT」文字之下（見 .hero-card__cta-stripes）。
+function basketballStripesSvg() {
+  return `<svg class="hero-card__cta-stripes" viewBox="0 0 100 100" aria-hidden="true">
+    <g fill="none" stroke="var(--color-accent-dark)" stroke-width="1.6" stroke-linecap="round">
+      <path d="M 50 0 L 50 100" />
+      <path d="M 0 50 L 100 50" />
+      <path d="M 50 0 Q 15 50 50 100" />
+      <path d="M 50 0 Q 85 50 50 100" />
+    </g>
+  </svg>`;
+}
+
 function renderPassRuleBars(detail) {
   if (!detail || detail.length === 0) return '';
   return `
@@ -283,7 +298,10 @@ function renderHeroCard(menu, isPassed) {
       ${gapHtml}
       <div class="hero-card__bottom-row">
         <div class="hero-card__best">個人最佳（完整版）：<strong>${bestHtml}</strong></div>
-        <button class="hero-card__cta-circle" data-open-variant="${menu.id}" aria-label="開始挑戰">SHOT</button>
+        <button class="hero-card__cta-circle" data-open-variant="${menu.id}" aria-label="開始挑戰">
+          ${basketballStripesSvg()}
+          <span class="hero-card__cta-text">SHOT</span>
+        </button>
       </div>
     </section>
   `;
@@ -628,8 +646,8 @@ function renderActive() {
           <button class="chip ${pendingSpot === null ? 'chip--active' : ''}" data-action="toggle-no-spot">不指定位置</button>
         </div>
         ${pendingSpot === null ? `
-          <div class="type-chips">
-            ${TYPE_OPTIONS.map((t) => `<button class="chip ${pendingType === t ? 'chip--active' : ''}" data-action="set-type:${t}">${typeLabel(t)}</button>`).join('')}
+          <div class="type-chips option-segmented" role="group" aria-label="球種">
+            ${TYPE_OPTIONS.map((t) => `<button class="option-segmented__btn ${pendingType === t ? 'is-active' : ''}" data-action="set-type:${t}">${typeLabel(t)}</button>`).join('')}
           </div>
         ` : ''}
       ` : ''}

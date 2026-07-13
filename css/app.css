@@ -107,7 +107,8 @@ a {
 .type-row__score,
 .type-row__pct,
 .spot-heat-pct,
-.spot-heat-mkatt {
+.court-info__score,
+.court-info__pct {
   font-variant-numeric: tabular-nums;
 }
 
@@ -285,15 +286,47 @@ a {
   pointer-events: none;
 }
 
+/* 動作族大鈕比照 SHOT 圓鈕：膠囊圓角＋字重 800＋字距拉開（SPEC M4.2 §3） */
+.btn--primary,
+.btn--secondary {
+  position: relative;
+  border-radius: var(--radius-full);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
 .btn--primary {
   background: var(--color-accent);
   color: var(--color-text-on-accent);
 }
 
+/* 外圈 offset ring，呼應 .hero-card__cta-circle::after；只有 primary（層級最高）才加 */
+.btn--primary::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border: 1.5px solid var(--color-accent);
+  opacity: 0.3;
+  border-radius: var(--radius-full);
+  pointer-events: none;
+}
+
+.btn--primary:active {
+  background: var(--color-accent-dark);
+}
+
+/* 描邊版：同膠囊形與字重，accent 細框＋accent 字，不加 ring（層級低一階） */
 .btn--secondary {
   background: var(--color-surface);
-  border: 1.5px solid var(--color-border-strong);
-  color: var(--color-text);
+  border: 1.5px solid var(--color-accent);
+  color: var(--color-accent-dark);
+}
+
+/* ghost／danger 只跟進膠囊圓角，維持低調 */
+.btn--ghost,
+.btn--ghost-danger,
+.btn--danger {
+  border-radius: var(--radius-full);
 }
 
 .btn--ghost {
@@ -323,15 +356,66 @@ a {
   transition: all var(--transition-fast);
 }
 
-.chip--active,
 .chip:active {
   background: var(--color-accent-tint);
   border-color: var(--color-accent);
   color: var(--color-accent-dark);
 }
 
+/* 選中態：accent 實色膠囊（非淡底），呼應「選項族」設計語彙（SPEC M4.2 §1） */
+.chip--active {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-text-on-accent);
+}
+
 .chip--attempts {
   color: var(--color-text);
+}
+
+/* 選項族共用膠囊 segmented（同快速／逐球切換語彙）：外框 sunken 底、
+   選中格 accent 實色膠囊、未選中無框淡字。用於自由練習球種選擇／
+   統計趨勢球種篩選／每週目標快選（SPEC M4.2 §1）。 */
+.option-segmented {
+  display: flex;
+  background: var(--color-surface-sunken);
+  border-radius: var(--radius-full);
+  padding: 3px;
+  gap: 2px;
+}
+
+.option-segmented__btn {
+  flex: 1;
+  min-height: 40px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  transition: all var(--transition-fast);
+}
+
+.option-segmented__btn.is-active {
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  box-shadow: var(--shadow-sm);
+}
+
+/* 超過 4 格（含「全部」）時允許橫向捲動＋字級縮一級，不換行跑版（統計趨勢球種篩選，§1） */
+.option-segmented--scroll {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.option-segmented--scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.option-segmented--scroll .option-segmented__btn {
+  flex: 0 0 auto;
+  padding: 0 var(--space-3);
+  font-size: var(--text-xs);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -562,6 +646,15 @@ a {
   cursor: default;
 }
 
+/* heat 模式：只有有出手資料的點可點，沒資料的縮小點維持預設游標 */
+.court-spot--heat {
+  cursor: default;
+}
+
+.court-spot--heat.is-clickable {
+  cursor: pointer;
+}
+
 .spot-dot {
   transition: r var(--transition-fast), fill var(--transition-fast);
   stroke: var(--color-surface);
@@ -590,8 +683,17 @@ a {
   }
 }
 
+/* heat 模式：點擊選中的點加細白描邊，兩套主題都用固定白色（--color-text-on-accent
+   兩套主題同值），才能在各種熱區色底上都看得清楚 */
+.court-spot--heat.is-clickable.is-selected .spot-dot {
+  stroke: var(--color-text-on-accent);
+  stroke-width: 3px;
+}
+
+/* 15px→26px：SVG 座標，手機實際約 12px 太小看不清，放大到位（SPEC M4.2 §4）。
+   白暈 stroke 跟著加粗到 5px，字放大後仍要壓得住球場線／熱區色維持可讀。 */
 .spot-label {
-  font-size: 15px;
+  font-size: 26px;
   font-weight: 700;
   fill: var(--color-text);
   opacity: 0;
@@ -599,7 +701,7 @@ a {
   pointer-events: none;
   paint-order: stroke;
   stroke: var(--color-surface);
-  stroke-width: 4px;
+  stroke-width: 5px;
 }
 
 .court-spot.is-selected .spot-label {
@@ -610,25 +712,74 @@ a {
   display: none;
 }
 
-/* heat 模式點內兩行文字：上行命中率（粗、大），下行投中比數（細、小） */
+/* heat 模式點內只放命中率一行（大、粗）；mk/att 移到點擊後的 .court-info 資訊列。
+   SVG viewBox 750 寬，手機上整顆球場常縮到約 340px（比例 0.46），26px 才能讓
+   實際顯示字高留在可讀範圍（SPEC M4.1 §0/§2）。 */
 .spot-heat-pct {
-  font-size: 15px;
+  font-size: 26px;
   font-weight: 800;
   fill: #fff;
   pointer-events: none;
   paint-order: stroke;
 }
 
-.spot-heat-mkatt {
-  font-size: 10px;
-  font-weight: 700;
-  fill: rgba(255, 255, 255, 0.88);
-  pointer-events: none;
-  paint-order: stroke;
+/* 「100%」四字元較寬，縮字級避免撐爆點的圓框 */
+.spot-heat-pct--tight {
+  font-size: 22px;
 }
 
-.spot-controls,
-.type-chips {
+/* heat 模式的點擊資訊列：court.js 在 container 內 svg 後面自己加這個 div，
+   不改 renderCourt 對外介面。min-height 固定，切換點時版面不跳動。 */
+.court-info {
+  min-height: 52px;
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+  border: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.court-info__placeholder {
+  font-size: var(--text-sm);
+  color: var(--color-text-faint);
+}
+
+.court-info__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: var(--space-2);
+  font-size: var(--text-md);
+}
+
+.court-info__label {
+  font-size: var(--text-md);
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+/* 數字同級：跟點名一樣粗體、同字級，整列一眼可讀（SPEC M4.2 §4） */
+.court-info__score {
+  font-size: var(--text-md);
+  font-weight: 700;
+  color: var(--color-text-muted);
+}
+
+.court-info__dot {
+  color: var(--color-text-faint);
+}
+
+.court-info__pct {
+  font-size: var(--text-lg);
+  font-weight: 800;
+}
+
+.spot-controls {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
@@ -1573,6 +1724,22 @@ a {
   background: var(--color-accent-dark);
 }
 
+/* 籃球條紋：絕對定位鋪滿圓鈕，z 序在「SHOT」文字之下（SPEC M4.2 §2）。
+   四條線用 SVG 座標幾何保證落在圓內，不需要另外裁切。 */
+.hero-card__cta-stripes {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.hero-card__cta-text {
+  position: relative;
+  z-index: 1;
+}
+
 /* ---------------------------------------------------------------------- */
 /* 首頁：快速重開（極速啟動，1 點直開上次菜單＋變體）                          */
 /* ---------------------------------------------------------------------- */
@@ -2385,18 +2552,6 @@ a {
   padding: var(--space-4) var(--space-2);
 }
 
-.chip-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-/* 五顆球種 chips 要在 375px 一行排下（避免「罰球」被擠成孤行）：此列 chips 收窄一階 */
-.chip-row .chip {
-  padding: 0 var(--space-3);
-  min-height: 36px;
-}
-
 /* 期間切換（7天 / 30天 / 全部）：與 .input-mode-toggle 同款視覺，獨立命名避免耦合輸入模式元件 */
 .segmented {
   display: flex;
@@ -2662,25 +2817,33 @@ a {
   color: var(--color-text-faint);
 }
 
+/* 選項排掃描：每週目標快選也是「選一個」，統一成膠囊 segmented（SPEC M4.2 §1） */
 .goal-quick-options {
   display: flex;
-  gap: var(--space-2);
+  gap: 2px;
+  background: var(--color-surface-sunken);
+  border-radius: var(--radius-full);
+  padding: 3px;
 }
 
 .goal-quick-btn {
   flex: 1;
   min-height: var(--touch-min);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-sunken);
-  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-text-muted);
   font-weight: 700;
   transition: all var(--transition-fast);
 }
 
-.goal-quick-btn.is-active,
+.goal-quick-btn.is-active {
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  box-shadow: var(--shadow-sm);
+}
+
 .goal-quick-btn:active {
   background: var(--color-accent-tint);
-  border-color: var(--color-accent);
   color: var(--color-accent-dark);
 }
 

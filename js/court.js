@@ -2,14 +2,19 @@
 // 定點表 SPOTS ＋ 半場 SVG 渲染（可選點模式 / 熱區顯示模式）。
 // 座標系統：FIBA 半場，viewBox 0 0 750 560，1m = 50px，籃框中心 B=(375, 79)，底線 y=0。
 
+// ft／mid_top 兩點原本 cy 只差 10px（310 / 300），r=24 的熱區點 96% 疊在一起，
+// 誤以為是重複點的 bug（SPEC M4.1 §0、§1）。現改為兩個有物理依據的定點：
+// - ft：cy=290，正好壓在罰球線上（罰球線距籃框中心 4.225m ≈ 211px，79+211=290）。
+// - mid_top：cy=350，罰球線後一步的頂端中距（約 5.4m），與罰球點在圖上明確分開。
+// 兩點中心距 60px，足以讓 §2 的 r=30 熱區點不相碰。
 export const SPOTS = [
   { id: "paint", label: "禁區近筐", type: "2pt", cx: 375, cy: 145 },
   { id: "mid_lc", label: "左底角中距", type: "2pt", cx: 150, cy: 100 },
   { id: "mid_lw", label: "左 45° 中距", type: "2pt", cx: 215, cy: 235 },
-  { id: "mid_top", label: "罰球線頂中距", type: "2pt", cx: 375, cy: 300 },
+  { id: "mid_top", label: "罰球線頂中距", type: "2pt", cx: 375, cy: 350 },
   { id: "mid_rw", label: "右 45° 中距", type: "2pt", cx: 535, cy: 235 },
   { id: "mid_rc", label: "右底角中距", type: "2pt", cx: 600, cy: 100 },
-  { id: "ft", label: "罰球", type: "ft", cx: 375, cy: 310 },
+  { id: "ft", label: "罰球", type: "ft", cx: 375, cy: 290 },
   { id: "3pt_lc", label: "左底角三分", type: "3pt", cx: 45, cy: 110 },
   { id: "3pt_lw", label: "左 45° 三分", type: "3pt", cx: 136, cy: 317 },
   { id: "3pt_top", label: "弧頂三分", type: "3pt", cx: 375, cy: 416 },
@@ -91,24 +96,33 @@ export function renderCourt(container, opts) {
     // 內聯 style 會蓋過樣式表，只有 heat 模式才需要動態指定顏色。
     let fillStyle = "";
     let innerText = "";
+    let hasHeatData = false;
+    let heatDataAttrs = "";
+    let ariaLabel = spot.label;
 
     if (mode === "heat") {
       const data = heat[spot.id];
-      const p = data && data.att > 0 ? Math.round((data.mk / data.att) * 100) : null;
+      hasHeatData = !!(data && data.att > 0);
+      const p = hasHeatData ? Math.round((data.mk / data.att) * 100) : null;
       fillStyle = ` style="fill:${heatColor(p)}"`;
-      if (data && data.att > 0) {
-        // 兩行：上行命中率（粗、大），下行投中比數（細、小）
-        innerText = `
-          <text class="spot-heat-pct" x="${spot.cx}" y="${spot.cy - 2}" text-anchor="middle">${p}%</text>
-          <text class="spot-heat-mkatt" x="${spot.cx}" y="${spot.cy + 14}" text-anchor="middle">${data.mk}/${data.att}</text>
-        `;
+      if (hasHeatData) {
+        // 點內只放命中率一行（大、粗）；mk/att 移到點擊後的 .court-info 資訊列，
+        // 「100%」四字元較寬，另用 --tight class 縮字級避免爆框。
+        const pctText = `${p}%`;
+        const pctClass = pctText.length >= 4 ? "spot-heat-pct spot-heat-pct--tight" : "spot-heat-pct";
+        innerText = `<text class="${pctClass}" x="${spot.cx}" y="${spot.cy}" text-anchor="middle" dominant-baseline="central">${pctText}</text>`;
+        heatDataAttrs = ` data-mk="${data.mk}" data-att="${data.att}" data-pct="${p}"`;
+        ariaLabel = `${spot.label}　${data.mk}/${data.att} 投中・命中率 ${p}%`;
       }
     }
 
-    const r = mode === "heat" ? 24 : isSelected ? 18 : 14;
+    // 有出手資料的熱區點半徑放大到 30（點內字才看得清）；沒資料的點縮到 8，
+    // 只當背景參考、降低噪音，也不可點。
+    const r = mode === "heat" ? (hasHeatData ? 30 : 8) : isSelected ? 18 : 14;
     const classes = ["court-spot", `court-spot--${mode}`];
     if (isSelected) classes.push("is-selected");
     if (locked) classes.push("is-locked");
+    if (mode === "heat" && hasHeatData) classes.push("is-clickable");
 
     // 底角三分點落在邊線上（cx 貼齊 45 / 705），標籤置中會超出 viewBox，
     // 左底角改靠左對齊、右底角改靠右對齊，並各自往內縮一點。
@@ -122,12 +136,22 @@ export function renderCourt(container, opts) {
       labelX = spot.cx - 4;
     }
 
+    const isInteractivePick = mode === "pick" && !locked;
+    const isInteractiveHeat = mode === "heat" && hasHeatData;
+    const tabIndex = isInteractivePick || isInteractiveHeat ? 0 : -1;
+    const role = isInteractivePick || isInteractiveHeat ? "button" : "img";
+    // hit circle 只給可點的點（pick 模式的可選點／heat 模式有資料的點），
+    // 無資料的縮小點不放大熱區判定範圍，避免誤觸。
+    const hitCircle = isInteractivePick || isInteractiveHeat
+      ? `<circle class="spot-hit" cx="${spot.cx}" cy="${spot.cy}" r="22" fill="transparent" />`
+      : "";
+
     return `
-      <g class="${classes.join(" ")}" data-spot="${spot.id}" tabindex="${mode === "pick" && !locked ? 0 : -1}" role="${mode === "pick" && !locked ? "button" : "img"}" aria-label="${spot.label}">
-        <circle class="spot-hit" cx="${spot.cx}" cy="${spot.cy}" r="22" fill="transparent" />
+      <g class="${classes.join(" ")}" data-spot="${spot.id}" tabindex="${tabIndex}" role="${role}" aria-label="${ariaLabel}"${heatDataAttrs}>
+        ${hitCircle}
         <circle class="spot-dot" cx="${spot.cx}" cy="${spot.cy}" r="${r}"${fillStyle} />
         ${innerText}
-        <text class="spot-label" x="${labelX}" y="${spot.cy - r - 8}" text-anchor="${labelAnchor}">${spot.label}</text>
+        <text class="spot-label" x="${labelX}" y="${spot.cy - r - 10}" text-anchor="${labelAnchor}">${spot.label}</text>
       </g>
     `;
   }).join("");
@@ -153,4 +177,66 @@ export function renderCourt(container, opts) {
       });
     });
   }
+
+  if (mode === "heat") {
+    setupHeatInfoPanel(container);
+  }
+}
+
+/** heat 模式預設提示（尚未點任何點）。 */
+function heatInfoPlaceholder() {
+  return `<p class="court-info__placeholder">點場上的點看各點詳細</p>`;
+}
+
+/** heat 模式點擊某點後的資訊列內容：點名　mk/att ・ pct%（pct 用該點熱區色強調）。 */
+function heatInfoDetail(spot, mk, att, p) {
+  return `
+    <p class="court-info__line">
+      <span class="court-info__label">${spot.label}</span>
+      <span class="court-info__score">${mk}/${att}</span>
+      <span class="court-info__dot">・</span>
+      <span class="court-info__pct" style="color:${heatColor(p)}">${p}%</span>
+    </p>
+  `;
+}
+
+/**
+ * heat 模式自我管理的點擊資訊列：在 container 內 svg 後面自己加一個 div，
+ * 不改 renderCourt 對外介面。點擊／Enter／空白鍵有資料的點會切換選中樣式
+ * （細白描邊）並更新資訊列；預設顯示淡色提示文字；資訊列固定 min-height，
+ * 切換時版面不跳動。
+ * @param {HTMLElement} container
+ */
+function setupHeatInfoPanel(container) {
+  const svg = container.querySelector(".court-svg");
+  const infoEl = document.createElement("div");
+  infoEl.className = "court-info";
+  infoEl.innerHTML = heatInfoPlaceholder();
+  container.appendChild(infoEl);
+
+  let selectedG = null;
+
+  svg.querySelectorAll(".court-spot--heat.is-clickable").forEach((g) => {
+    const id = g.getAttribute("data-spot");
+    const spot = getSpot(id);
+    if (!spot) return;
+    const mk = Number(g.getAttribute("data-mk"));
+    const att = Number(g.getAttribute("data-att"));
+    const p = Number(g.getAttribute("data-pct"));
+
+    const activate = () => {
+      if (selectedG) selectedG.classList.remove("is-selected");
+      g.classList.add("is-selected");
+      selectedG = g;
+      infoEl.innerHTML = heatInfoDetail(spot, mk, att, p);
+    };
+
+    g.addEventListener("click", activate);
+    g.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        activate();
+      }
+    });
+  });
 }

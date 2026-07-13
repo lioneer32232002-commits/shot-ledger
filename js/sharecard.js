@@ -220,15 +220,16 @@ function drawMiniCourt(ctx, heatSpots, ox, oy, scale, lineColor = COLORS.courtLi
   ctx.stroke();
 
   // 出手點位：僅畫該節有出手的點，顏色同熱區三級；點內畫命中率%（canvas 版空間較小，只畫 %）。
+  // r 20→26、字 15→18（乘 scale ≈1.2 後實際約 33px／22px），呼應 court.js 熱區點放大。
   heatSpots.forEach((s) => {
     ctx.beginPath();
     ctx.fillStyle = heatTierColor(s.pct);
-    ctx.arc(tx(s.cx), ty(s.cy), 20 * scale, 0, Math.PI * 2);
+    ctx.arc(tx(s.cx), ty(s.cy), 26 * scale, 0, Math.PI * 2);
     ctx.fill();
 
     if (s.pct !== null) {
       ctx.fillStyle = '#fff';
-      ctx.font = `800 ${15 * scale}px ${FONT_FAMILY}`;
+      ctx.font = `800 ${18 * scale}px ${FONT_FAMILY}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(`${s.pct}%`, tx(s.cx), ty(s.cy));
@@ -255,13 +256,18 @@ export function drawCard(canvas, data, opts = {}) {
   const ctx = canvas.getContext('2d');
 
   // 照片模式：文字全面改亮色系，好在暗化後的照片上維持可讀；無照片時維持紙感亮色版原樣。
+  // accent 在照片模式改亮橘（比深色主題 accent #F2691D 再亮半階），壓在照片上對比才夠；
+  // 徽章改實心亮橘＋白字，取代看不清的半透明白底（SPEC M4.2 §5）。
   const palette = photoImg
     ? {
         text: '#FAF9F7',
         muted: 'rgba(255, 255, 255, 0.72)',
-        accent: COLORS.accent,
+        accent: '#FF8A3D',
         courtLine: 'rgba(255, 255, 255, 0.55)',
-        badgeBg: 'rgba(255, 255, 255, 0.18)',
+        badgeBg: '#FF8A3D',
+        badgeText: '#FFFFFF',
+        badgeWeight: 800,
+        pctShadow: true,
       }
     : {
         text: COLORS.text,
@@ -269,6 +275,9 @@ export function drawCard(canvas, data, opts = {}) {
         accent: COLORS.accent,
         courtLine: COLORS.courtLine,
         badgeBg: COLORS.sand,
+        badgeText: COLORS.accent,
+        badgeWeight: 700,
+        pctShadow: false,
       };
 
   if (photoImg) {
@@ -291,27 +300,41 @@ export function drawCard(canvas, data, opts = {}) {
   let y = 100;
 
   // 1. 品牌列（左：小籃球圖示＋SHOT LEDGER；右：日期）
+  // 球場放大後版面吃緊，品牌列後留白 78→70（M4.1 §3）。
   drawBrandMark(ctx, marginX, y, palette.text);
   ctx.textAlign = 'right';
   ctx.fillStyle = palette.muted;
   ctx.font = `700 30px ${FONT_FAMILY}`;
   ctx.fillText(data.dateLabel, CARD_W - marginX, y);
   ctx.textAlign = 'left';
-  y += 78;
+  y += 70;
 
-  // 2. 菜單名＋變體 tag
+  // 2. 菜單名＋變體 tag（菜單行後留白 66→58）
   const menuLine = data.variantLabel ? `${data.menuName}・${data.variantLabel}` : data.menuName;
   const menuSize = fitFontSize(ctx, menuLine, CARD_W - marginX * 2, 46, 800);
   ctx.fillStyle = palette.text;
   ctx.font = `800 ${menuSize}px ${FONT_FAMILY}`;
   ctx.fillText(menuLine, marginX, y);
-  y += 66;
+  y += 58;
 
-  // 3. 主數字：總命中率超大字＋投中比數
+  // 3. 主數字：總命中率超大字＋投中比數（150px 大字不變，區塊高度壓縮 176→150 替底下騰空間）
+  // 照片模式加柔和深色投影，橘字壓在亮部照片上也讀得清；畫完立刻重置 shadow 免得污染後續繪製。
   const pctLabel = data.totalPct === null ? '—' : `${data.totalPct}%`;
+  if (palette.pctShadow) {
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+    ctx.shadowBlur = 12;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+  }
   ctx.fillStyle = palette.accent;
   ctx.font = `800 150px ${FONT_FAMILY}`;
   ctx.fillText(pctLabel, marginX, y + 122);
+  if (palette.pctShadow) {
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+  }
   const pctWidth = ctx.measureText(pctLabel).width;
 
   const detailLabel = `${data.totalMk}/${data.totalAtt} 投中`;
@@ -320,21 +343,42 @@ export function drawCard(canvas, data, opts = {}) {
   ctx.fillStyle = palette.muted;
   ctx.font = `700 ${detailSize}px ${FONT_FAMILY}`;
   ctx.fillText(detailLabel, detailX, y + 122);
-  y += 176;
+  y += 150;
 
-  // 4. 球種列（有資料的才列）
-  data.typeRows.forEach((row) => {
-    const line = `${row.label} ${row.mk}/${row.att}・${row.pct === null ? '—' : row.pct + '%'}`;
-    const size = fitFontSize(ctx, line, CARD_W - marginX * 2, 36, 700);
-    ctx.fillStyle = palette.text;
+  // 4. 球種列：兩欄 grid（最多 2×2，四種球種都排得下），每列行高 50→44。
+  // 每欄拆三段固定錨點分別繪製（球種名 left／顆數 right／命中率 right），
+  // 拿掉「・」分隔符，欄位對齊本身就是分隔（SPEC M4.2 §6）。canvas 沒有
+  // font-variant-numeric，靠 textAlign right 讓兩欄的顆數／% 上下對齊。
+  const typeColGap = 24;
+  const typeColW = (CARD_W - marginX * 2 - typeColGap) / 2;
+  const typeRowH = 44;
+  const typeCountRightFrac = 0.62; // 顆數欄右緣（相對欄寬），命中率固定在欄位右緣
+  data.typeRows.forEach((row, i) => {
+    const col = i % 2;
+    const rowIdx = Math.floor(i / 2);
+    const colX = marginX + col * (typeColW + typeColGap);
+    const rowY = y + rowIdx * typeRowH;
+    const countLabel = `${row.mk}/${row.att}`;
+    const pctLabel = row.pct === null ? '—' : `${row.pct}%`;
+
+    // 用三段合併的寬鬆估算決定字級，避免極端資料（罕見大數字）擠出欄寬。
+    const size = fitFontSize(ctx, `${row.label}  ${countLabel}  ${pctLabel}`, typeColW, 32, 700);
     ctx.font = `700 ${size}px ${FONT_FAMILY}`;
-    ctx.fillText(line, marginX, y);
-    y += 50;
+    ctx.fillStyle = palette.text;
+
+    ctx.textAlign = 'left';
+    ctx.fillText(row.label, colX, rowY);
+
+    ctx.textAlign = 'right';
+    ctx.fillText(countLabel, colX + typeColW * typeCountRightFrac, rowY);
+    ctx.fillText(pctLabel, colX + typeColW, rowY);
   });
+  ctx.textAlign = 'left';
+  y += Math.ceil(data.typeRows.length / 2) * typeRowH;
   y += 26;
 
-  // 5. 迷你半場熱區圖（約佔卡片寬 70%，置中）
-  const courtW = CARD_W * 0.7;
+  // 5. 迷你半場熱區圖（卡寬 70%→約 83%，置中，點位與字級同步放大見 drawMiniCourt）
+  const courtW = CARD_W * 0.83;
   const scale = courtW / 750;
   const courtH = 560 * scale;
   const courtX = (CARD_W - courtW) / 2;
@@ -347,13 +391,13 @@ export function drawCard(canvas, data, opts = {}) {
   if (data.personalBest) badges.push('個人最佳');
   if (badges.length) {
     let bx = marginX;
-    ctx.font = `700 28px ${FONT_FAMILY}`;
+    ctx.font = `${palette.badgeWeight} 28px ${FONT_FAMILY}`;
     badges.forEach((label) => {
       const w = ctx.measureText(label).width + 44;
       roundRectPath(ctx, bx, y, w, 56, 28);
       ctx.fillStyle = palette.badgeBg;
       ctx.fill();
-      ctx.fillStyle = palette.accent;
+      ctx.fillStyle = palette.badgeText;
       ctx.fillText(label, bx + 22, y + 37);
       bx += w + 18;
     });

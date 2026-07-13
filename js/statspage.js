@@ -253,13 +253,13 @@ function renderTrendSection(now, period) {
   const series = pctSeries(state.sessions, { type: chip.type, bucket, now, days: period.days });
 
   const chipsHtml = TYPE_CHIPS.map(
-    (c) => `<button class="chip ${c.key === typeKey ? 'chip--active' : ''}" data-type="${c.key}">${c.label}</button>`
+    (c) => `<button class="option-segmented__btn ${c.key === typeKey ? 'is-active' : ''}" data-type="${c.key}">${c.label}</button>`
   ).join('');
 
   return `
     <section class="stats-block">
       <h2 class="section-title">命中率趨勢</h2>
-      <div class="chip-row">${chipsHtml}</div>
+      <div class="option-segmented option-segmented--scroll" role="group" aria-label="球種篩選">${chipsHtml}</div>
       ${renderPctChart(series, bucket)}
     </section>
   `;
