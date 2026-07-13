@@ -1471,10 +1471,12 @@ a {
   justify-content: center;
   background: var(--color-accent);
   color: var(--color-accent-contrast);
-  font-size: var(--text-md);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  line-height: 1.35;
+  /* 單字口令「SHOT」：字距拉開往右多出一格視覺寬，用 text-indent 補回置中 */
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-indent: 0.14em;
+  line-height: 1;
   transition: transform var(--transition-fast), background var(--transition-fast);
 }
 

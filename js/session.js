@@ -281,9 +281,7 @@ function renderHeroCard(menu, isPassed) {
       ${gapHtml}
       <div class="hero-card__bottom-row">
         <div class="hero-card__best">個人最佳（完整版）：<strong>${bestHtml}</strong></div>
-        <button class="hero-card__cta-circle" data-open-variant="${menu.id}" aria-label="開始挑戰">
-          <span>開始</span><span>挑戰</span>
-        </button>
+        <button class="hero-card__cta-circle" data-open-variant="${menu.id}" aria-label="開始挑戰">SHOT</button>
       </div>
     </section>
   `;
