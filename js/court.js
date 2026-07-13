@@ -57,7 +57,7 @@ function courtMarkup() {
       <!-- 罰球圈 -->
       <circle cx="${HOOP.x}" cy="${PAINT_H}" r="${FT_R}" stroke-dasharray="8 7" />
       <!-- 三分線 -->
-      <path d="M ${SIDE_OFFSET} 0 L ${SIDE_OFFSET} ${arcY} A ${THREE_R} ${THREE_R} 0 0 1 ${rightX} ${arcY} L ${rightX} 0" />
+      <path d="M ${SIDE_OFFSET} 0 L ${SIDE_OFFSET} ${arcY} A ${THREE_R} ${THREE_R} 0 0 0 ${rightX} ${arcY} L ${rightX} 0" />
       <!-- 籃板 -->
       <line x1="${HOOP.x - 45}" y1="${HOOP.y - 8}" x2="${HOOP.x + 45}" y2="${HOOP.y - 8}" stroke-width="4" />
       <!-- 籃框 -->

@@ -221,21 +221,34 @@ function renderPassRuleBars(detail) {
   `;
 }
 
-// 球員生涯數據列（數據與查證紀錄在 menus.js 的 career 欄位）。
-function renderCareerHtml(career) {
+// 球員生涯數據面板「夜幕數據面板」（數據與查證紀錄在 menus.js 的 career 欄位，
+// 這裡純呈現，不改任何數字／文案）。passRule 只用來決定哪一欄要用 accent 色高亮：
+// 2pt→FG 欄、3pt／deep3→3P 欄、ft→罰球欄；多條 rule 可同時高亮多欄。
+function renderCareerHtml(career, passRule) {
   if (!career) return '';
-  const items = [
-    `NBA ${career.years}`,
-    `FG ${career.fg}%`,
-    `3分 ${career.tp}%`,
-    `罰球 ${career.ft}%`,
-    `三分 ${formatThousands(career.tpm)} 顆`,
+  const ruleTypes = (passRule || []).map((r) => r.type);
+  const stats = [
+    { value: `${career.fg}%`, label: '投籃 FG', accent: ruleTypes.includes('2pt') },
+    { value: `${career.tp}%`, label: '三分 3P', accent: ruleTypes.includes('3pt') || ruleTypes.includes('deep3') },
+    { value: `${career.ft}%`, label: '罰球 FT', accent: ruleTypes.includes('ft') },
+    // 第 4 欄是生涯三分命中顆數，欄位標籤已說明單位，不再帶「顆」字。
+    { value: formatThousands(career.tpm), label: '三分命中', accent: false },
   ];
-  return `
-    <div class="hero-card__career">
-      ${items.map((t) => `<span class="career-stat nowrap">${t}</span>`).join('')}
+  const statsHtml = stats.map((s) => `
+    <div class="career-panel__stat">
+      <span class="career-panel__stat-value nowrap${s.accent ? ' is-accent' : ''}">${s.value}</span>
+      <span class="career-panel__stat-label nowrap">${s.label}</span>
     </div>
-    <p class="hero-card__fact">${career.fact}</p>
+  `).join('');
+  return `
+    <div class="career-panel">
+      <div class="career-panel__caption">
+        <span class="nowrap">NBA ${career.years}</span>
+        <span class="nowrap">生涯數據</span>
+      </div>
+      <div class="career-panel__stats">${statsHtml}</div>
+      <p class="career-panel__fact">${career.fact}</p>
+    </div>
   `;
 }
 
@@ -258,7 +271,7 @@ function renderHeroCard(menu, isPassed) {
       </div>
       <h2 class="hero-card__name">${menu.name}</h2>
       <p class="hero-card__player">${menu.player}　<span class="hero-card__status">${playerStatusLabel(menu.playerStatus)}</span></p>
-      ${renderCareerHtml(menu.career)}
+      ${renderCareerHtml(menu.career, menu.passRule)}
       <p class="hero-card__focus">${menu.focus}</p>
       <p class="inspired-note">依公開報導風格改編的靈感版本・單人可執行</p>
       <div class="hero-card__best">個人最佳（完整版）：<strong>${bestHtml}</strong></div>

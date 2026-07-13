@@ -1301,28 +1301,76 @@ a {
   word-break: keep-all;
 }
 
-.hero-card__career {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-2);
-  margin-top: var(--space-1);
+/* 生涯數據面板「夜幕數據面板」：深藍面板內嵌在米白 hero 卡裡，
+   呼應品牌夜幕深藍（favicon / OG 圖夜空同色系）。取代舊版米色 pill 列。 */
+.career-panel {
+  margin-top: var(--space-3);
+  margin-bottom: var(--space-3);
+  background: var(--color-night);
+  border: 1px solid var(--color-night-line);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
 }
 
-.career-stat {
+.career-panel__caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
   font-size: var(--text-xs);
+  letter-spacing: 0.04em;
+  color: var(--color-on-night-muted);
+}
+
+.career-panel__stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-1);
+  margin-top: var(--space-3);
+}
+
+.career-panel__stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  text-align: center;
+}
+
+.career-panel__stat-value {
+  font-size: var(--text-lg);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: var(--color-text-muted);
-  background: var(--color-surface-sunken);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-full, 999px);
-  padding: 2px 8px;
+  color: var(--color-on-night);
 }
 
-.hero-card__fact {
-  margin-top: var(--space-1);
+.career-panel__stat-value.is-accent {
+  color: var(--color-accent);
+}
+
+.career-panel__stat-label {
+  margin-top: 2px;
   font-size: var(--text-xs);
-  color: var(--color-text-muted);
+  color: var(--color-on-night-muted);
+}
+
+.career-panel__fact {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  padding-left: var(--space-2);
+  border-top: 1px solid var(--color-night-line);
+  border-left: 3px solid var(--color-accent);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--color-on-night);
+}
+
+/* 375px 上下：4 欄夠窄時，標籤字級／字距略縮，仍不低於 11px、不換行。 */
+@media (max-width: 380px) {
+  .career-panel__stat-label {
+    font-size: 11px;
+    letter-spacing: -0.01em;
+  }
 }
 
 .hero-card__player {
