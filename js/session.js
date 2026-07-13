@@ -681,7 +681,7 @@ function renderActive() {
     `
     : `
       <p class="round-input__question">這輪進幾顆？</p>
-      ${makesGridHtml(attemptsForRound, (n, spanAttr) => `<button class="makes-btn" data-action="confirm-makes:${n}" ${!pendingType ? 'disabled' : ''}${spanAttr}>${n}</button>`)}
+      ${makesGridHtml(attemptsForRound, (n) => `<button class="makes-btn" data-action="confirm-makes:${n}" ${!pendingType ? 'disabled' : ''}>${n}</button>`)}
     `;
 
   // 菜單模式所有輪次都記完，但尚未按「結束並結算」：輸入區換成完成面板（§4）。
@@ -776,13 +776,18 @@ function renderActive() {
 
 function renderAttemptsStepperHtml() {
   const options = Array.from({ length: 20 }, (_, i) => i + 1);
+  const gridHtml = centeredButtonRowsHtml(
+    options,
+    5,
+    (n) => `<button class="stepper-btn ${n === attemptsForRound ? 'is-active' : ''}" data-action="set-attempts:${n}">${n}</button>`,
+    'stepper-grid',
+    'stepper-grid__row'
+  );
   return `
     <div class="sheet-backdrop" data-action="close-attempts">
       <div class="sheet">
         <h3 class="sheet__title">這輪實際要投幾球？</h3>
-        <div class="stepper-grid">
-          ${options.map((n) => `<button class="stepper-btn ${n === attemptsForRound ? 'is-active' : ''}" data-action="set-attempts:${n}">${n}</button>`).join('')}
-        </div>
+        ${gridHtml}
       </div>
     </div>
   `;
@@ -813,22 +818,29 @@ function renderEditRoundHtml() {
       <div class="sheet">
         <h3 class="sheet__title">修改第 ${editingRoundIndex + 1} 輪</h3>
         <p class="sheet__sub">${spotLabel}，原本 ${r.makes}/${r.attempts}，改成進幾顆？</p>
-        ${makesGridHtml(r.attempts, (n, spanAttr) => `<button class="makes-btn ${n === r.makes ? 'is-active' : ''}" data-action="save-edit-makes:${n}"${spanAttr}>${n}</button>`)}
+        ${makesGridHtml(r.attempts, (n) => `<button class="makes-btn ${n === r.makes ? 'is-active' : ''}" data-action="save-edit-makes:${n}">${n}</button>`)}
       </div>
     </div>
   `;
 }
 
-// 0–attempts 的數字按鈕網格（6 欄）。最後一顆按鈕跨欄補滿列尾，
-// 避免像「10」單獨掛在最後一行的孤立排版。
+// 圓鈕列式排版共用工具：把 items 依 cols 切成多列，每列各自置中
+// （flex row + justify-content:center），列距與顆距一致；最後一列不足 cols
+// 顆時自然置中，不需要 grid-column span 補位（SPEC M4.3 §1）。
+function centeredButtonRowsHtml(items, cols, cellHtml, wrapClass, rowClass) {
+  const rows = [];
+  for (let i = 0; i < items.length; i += cols) {
+    rows.push(items.slice(i, i + cols));
+  }
+  const rowsHtml = rows.map((row) => `<div class="${rowClass}">${row.map(cellHtml).join('')}</div>`).join('');
+  return `<div class="${wrapClass}">${rowsHtml}</div>`;
+}
+
+// 0–attempts 的數字按鈕網格：每列最多 6 顆，末列不足 6 顆置中。
+// 修改輪次 sheet 用同一支函式，排版自動一致。
 function makesGridHtml(attempts, btnHtml) {
-  const count = attempts + 1;
-  const cols = 6;
-  const span = cols - ((count - 1) % cols);
-  const buttons = Array.from({ length: count }, (_, n) =>
-    btnHtml(n, n === attempts && span > 1 ? ` style="grid-column: span ${span}"` : '')
-  ).join('');
-  return `<div class="makes-grid">${buttons}</div>`;
+  const items = Array.from({ length: attempts + 1 }, (_, n) => n);
+  return centeredButtonRowsHtml(items, 6, (n) => btnHtml(n), 'makes-grid', 'makes-grid__row');
 }
 
 function pickSpot(id) {

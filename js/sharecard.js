@@ -108,6 +108,28 @@ function fitFontSize(ctx, text, maxWidth, startSize, weight) {
   return size;
 }
 
+/**
+ * 量出文字「實際墨水高度」（ascent／descent），用來做顯式游標推進（SPEC M4.3
+ * §3a）：比用字級猜高度準確，尤其中文字常常視覺上比字級本身高／矮。部分極舊
+ * 瀏覽器沒有 actualBoundingBox*，退回用字級比例估算，僅為保底不影響主流程。
+ * 注意：這兩個值是相對「呼叫當下 ctx.textBaseline」量的，本檔全程維持預設值
+ * alphabetic（drawMiniCourt 內部暫改 middle，結束前會自己還原），呼叫端不需
+ * 另外處理。
+ */
+function measureAscDesc(ctx, text, font) {
+  ctx.font = font;
+  const m = ctx.measureText(text);
+  const sizeMatch = font.match(/(\d+(?:\.\d+)?)px/);
+  const size = sizeMatch ? parseFloat(sizeMatch[1]) : 24;
+  const asc = typeof m.actualBoundingBoxAscent === 'number' && !Number.isNaN(m.actualBoundingBoxAscent)
+    ? m.actualBoundingBoxAscent
+    : size * 0.8;
+  const desc = typeof m.actualBoundingBoxDescent === 'number' && !Number.isNaN(m.actualBoundingBoxDescent)
+    ? m.actualBoundingBoxDescent
+    : size * 0.22;
+  return { asc, desc, width: m.width };
+}
+
 function roundRectPath(ctx, x, y, w, h, r) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
@@ -220,7 +242,9 @@ function drawMiniCourt(ctx, heatSpots, ox, oy, scale, lineColor = COLORS.courtLi
   ctx.stroke();
 
   // 出手點位：僅畫該節有出手的點，顏色同熱區三級；點內畫命中率%（canvas 版空間較小，只畫 %）。
-  // r 20→26、字 15→18（乘 scale ≈1.2 後實際約 33px／22px），呼應 court.js 熱區點放大。
+  // r 20→26；字 18→24（乘 scale ≈1.2 後實際約 29px），呼應 court.js 熱區點貫穿字（SPEC
+  // M4.3 §2）：允許超出點的圓邊，加同款深色描邊（strokeText 疊在 fillText 下面）避免
+  // 突出的部分壓在球場線上看不清。
   heatSpots.forEach((s) => {
     ctx.beginPath();
     ctx.fillStyle = heatTierColor(s.pct);
@@ -228,11 +252,16 @@ function drawMiniCourt(ctx, heatSpots, ox, oy, scale, lineColor = COLORS.courtLi
     ctx.fill();
 
     if (s.pct !== null) {
-      ctx.fillStyle = '#fff';
-      ctx.font = `800 ${18 * scale}px ${FONT_FAMILY}`;
+      const pctText = `${s.pct}%`;
+      ctx.font = `800 ${24 * scale}px ${FONT_FAMILY}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(`${s.pct}%`, tx(s.cx), ty(s.cy));
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = 3 * scale;
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
+      ctx.strokeText(pctText, tx(s.cx), ty(s.cy));
+      ctx.fillStyle = '#fff';
+      ctx.fillText(pctText, tx(s.cx), ty(s.cy));
     }
   });
 
@@ -296,30 +325,76 @@ export function drawCard(canvas, data, opts = {}) {
     ctx.fillRect(0, 0, CARD_W, CARD_H);
   }
 
+  // -------------------------------------------------------------------------
+  // 版面：顯式游標推進（SPEC M4.3 §3a，修垂直重疊 bug 的根因修正）。
+  // y 全程代表「下一區塊可以開始畫的最上緣」（不是 baseline）；每畫完一段就用
+  // 量到的實際墨水高度（measureAscDesc：ascent＋descent，不是字級猜測）＋固定
+  // GAP 往下推進，不再疊加魔術數字。GAP 一律 ≥16px，結構上保證任兩段內容之間
+  // 的純背景帶都達標。高度預算表（實際值依資料內容變動，這裡列的是設計目標）：
+  //
+  //   區塊                    大約視覺高度         GAP（到下一段）
+  //   ────────────────────── ─────────────────── ───────────────
+  //   品牌列（圖示＋文字）      ~44px               34px
+  //   菜單名                  ≤58px（依字級）       30px
+  //   主數字＋投中行            ~150～160px          40px  ← 見下方特別說明
+  //   球種列（1～2 列）         每列 ~46px           40px
+  //   迷你球場                 78～83% 卡寬換算       40px
+  //   狀態徽章（可選 0～2 枚）   56px                 34px
+  //   網址                    固定貼底 CARD_H-56（前面留夠淨空即可，不參與游標）
+  //
+  //   「主數字＋投中行」的 40px gap 疊加球種列首行的 ascent，實測後投中 baseline
+  //   到球種列首行 baseline 差 ≥56px（本輪驗收要求，見自驗記錄）。
   const marginX = 76;
   let y = 100;
 
   // 1. 品牌列（左：小籃球圖示＋SHOT LEDGER；右：日期）
-  // 球場放大後版面吃緊，品牌列後留白 78→70（M4.1 §3）。
-  drawBrandMark(ctx, marginX, y, palette.text);
+  const brandFont = `800 32px ${FONT_FAMILY}`;
+  const dateFont = `700 30px ${FONT_FAMILY}`;
+  // 圖示頂緣＝baseline-36（見 drawBrandMark 的 r=22、cy=baseline-r+8 幾何），
+  // 比文字頂緣更高，是本區塊真正的頂，用它反推 baseline 讓區塊頂對齊游標 y。
+  const brandBaselineY = y + 36;
+  drawBrandMark(ctx, marginX, brandBaselineY, palette.text);
   ctx.textAlign = 'right';
   ctx.fillStyle = palette.muted;
-  ctx.font = `700 30px ${FONT_FAMILY}`;
-  ctx.fillText(data.dateLabel, CARD_W - marginX, y);
+  ctx.font = dateFont;
+  ctx.fillText(data.dateLabel, CARD_W - marginX, brandBaselineY);
   ctx.textAlign = 'left';
-  y += 70;
+  const brandTextMetrics = measureAscDesc(ctx, 'SHOT LEDGER', brandFont);
+  const dateMetrics = measureAscDesc(ctx, data.dateLabel, dateFont);
+  const brandIconBottom = brandBaselineY + 8; // 圖示半徑22＋往下偏移8，幾何固定值
+  const brandBlockBottom = Math.max(
+    brandIconBottom,
+    brandBaselineY + brandTextMetrics.desc,
+    brandBaselineY + dateMetrics.desc
+  );
+  y = brandBlockBottom + 34;
 
-  // 2. 菜單名＋變體 tag（菜單行後留白 66→58）
+  // 2. 菜單名＋變體 tag
   const menuLine = data.variantLabel ? `${data.menuName}・${data.variantLabel}` : data.menuName;
   const menuSize = fitFontSize(ctx, menuLine, CARD_W - marginX * 2, 46, 800);
+  const menuFont = `800 ${menuSize}px ${FONT_FAMILY}`;
+  const menuMetrics = measureAscDesc(ctx, menuLine, menuFont);
+  const menuBaselineY = y + menuMetrics.asc;
   ctx.fillStyle = palette.text;
-  ctx.font = `800 ${menuSize}px ${FONT_FAMILY}`;
-  ctx.fillText(menuLine, marginX, y);
-  y += 58;
+  ctx.font = menuFont;
+  ctx.fillText(menuLine, marginX, menuBaselineY);
+  y = menuBaselineY + menuMetrics.desc + 30;
 
-  // 3. 主數字：總命中率超大字＋投中比數（150px 大字不變，區塊高度壓縮 176→150 替底下騰空間）
+  // 3. 主數字：總命中率超大字＋投中比數（同一 baseline）。
   // 照片模式加柔和深色投影，橘字壓在亮部照片上也讀得清；畫完立刻重置 shadow 免得污染後續繪製。
   const pctLabel = data.totalPct === null ? '—' : `${data.totalPct}%`;
+  const pctFont = `800 150px ${FONT_FAMILY}`;
+  const detailLabel = `${data.totalMk}/${data.totalAtt} 投中`;
+
+  const pctMetrics = measureAscDesc(ctx, pctLabel, pctFont);
+  const pctWidth = ctx.measureText(pctLabel).width;
+  const detailX = marginX + pctWidth + 28;
+  const detailSize = fitFontSize(ctx, detailLabel, CARD_W - marginX - detailX, 34, 700);
+  const detailFont = `700 ${detailSize}px ${FONT_FAMILY}`;
+  const detailMetrics = measureAscDesc(ctx, detailLabel, detailFont);
+
+  const bigNumBaselineY = y + Math.max(pctMetrics.asc, detailMetrics.asc);
+
   if (palette.pctShadow) {
     ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
     ctx.shadowBlur = 12;
@@ -327,87 +402,118 @@ export function drawCard(canvas, data, opts = {}) {
     ctx.shadowOffsetY = 0;
   }
   ctx.fillStyle = palette.accent;
-  ctx.font = `800 150px ${FONT_FAMILY}`;
-  ctx.fillText(pctLabel, marginX, y + 122);
+  ctx.font = pctFont;
+  ctx.fillText(pctLabel, marginX, bigNumBaselineY);
   if (palette.pctShadow) {
     ctx.shadowColor = 'transparent';
     ctx.shadowBlur = 0;
     ctx.shadowOffsetX = 0;
     ctx.shadowOffsetY = 0;
   }
-  const pctWidth = ctx.measureText(pctLabel).width;
-
-  const detailLabel = `${data.totalMk}/${data.totalAtt} 投中`;
-  const detailX = marginX + pctWidth + 28;
-  const detailSize = fitFontSize(ctx, detailLabel, CARD_W - marginX - detailX, 34, 700);
   ctx.fillStyle = palette.muted;
-  ctx.font = `700 ${detailSize}px ${FONT_FAMILY}`;
-  ctx.fillText(detailLabel, detailX, y + 122);
-  y += 150;
+  ctx.font = detailFont;
+  ctx.fillText(detailLabel, detailX, bigNumBaselineY);
 
-  // 4. 球種列：兩欄 grid（最多 2×2，四種球種都排得下），每列行高 50→44。
-  // 每欄拆三段固定錨點分別繪製（球種名 left／顆數 right／命中率 right），
-  // 拿掉「・」分隔符，欄位對齊本身就是分隔（SPEC M4.2 §6）。canvas 沒有
-  // font-variant-numeric，靠 textAlign right 讓兩欄的顆數／% 上下對齊。
-  const typeColGap = 24;
-  const typeColW = (CARD_W - marginX * 2 - typeColGap) / 2;
-  const typeRowH = 44;
-  const typeCountRightFrac = 0.62; // 顆數欄右緣（相對欄寬），命中率固定在欄位右緣
+  y = bigNumBaselineY + Math.max(pctMetrics.desc, detailMetrics.desc) + 40;
+
+  // 4. 球種列：兩欄固定寬錨點，不撐滿欄寬（SPEC M4.3 §3b）。label 靠左（欄 x）、
+  // count 右對齊在欄 x+230、pct 右對齊在欄 x+360，兩欄位間至少留 24px；
+  // 兩欄 grid 欄距固定 60px，整組靠左（marginX 起），右側自然留白。
+  const typeColGap = 60;
+  const typeColAnchorCount = 230; // count 右緣＝欄x+230
+  const typeColAnchorPct = 360; // pct 右緣＝欄x+360（與最寬 count「50/90」實測仍留 ≥24px）
+  const typeRowFont32 = `700 32px ${FONT_FAMILY}`;
+  const typeRowRef = measureAscDesc(ctx, '深 3', typeRowFont32); // 代表性 CJK 字高，決定列距
+  // +20（非 14）：不同字元的實際 ascent/descent 跟參考字「深 3」略有出入，
+  // 實測兩列間純背景帶一度只有 13px，加大緩衝確保 ≥16px（驗收必檢 #1）。
+  const typeRowPitch = Math.ceil(typeRowRef.asc + typeRowRef.desc) + 20;
+  const typeFirstBaseline = y + typeRowRef.asc;
+
   data.typeRows.forEach((row, i) => {
     const col = i % 2;
     const rowIdx = Math.floor(i / 2);
-    const colX = marginX + col * (typeColW + typeColGap);
-    const rowY = y + rowIdx * typeRowH;
+    const colX = marginX + col * (typeColAnchorPct + typeColGap);
+    const rowBaseline = typeFirstBaseline + rowIdx * typeRowPitch;
     const countLabel = `${row.mk}/${row.att}`;
-    const pctLabel = row.pct === null ? '—' : `${row.pct}%`;
+    const pctLabelTxt = row.pct === null ? '—' : `${row.pct}%`;
 
-    // 用三段合併的寬鬆估算決定字級，避免極端資料（罕見大數字）擠出欄寬。
-    const size = fitFontSize(ctx, `${row.label}  ${countLabel}  ${pctLabel}`, typeColW, 32, 700);
+    // label／count 各自對自己的可用寬度縮字級，避免極端資料撐出欄位。
+    const labelMaxW = typeColAnchorCount - 24;
+    const countMaxW = typeColAnchorPct - 24 - typeColAnchorCount;
+    const size = Math.min(
+      fitFontSize(ctx, row.label, labelMaxW, 32, 700),
+      fitFontSize(ctx, countLabel, countMaxW, 32, 700)
+    );
     ctx.font = `700 ${size}px ${FONT_FAMILY}`;
     ctx.fillStyle = palette.text;
 
     ctx.textAlign = 'left';
-    ctx.fillText(row.label, colX, rowY);
+    ctx.fillText(row.label, colX, rowBaseline);
 
     ctx.textAlign = 'right';
-    ctx.fillText(countLabel, colX + typeColW * typeCountRightFrac, rowY);
-    ctx.fillText(pctLabel, colX + typeColW, rowY);
+    ctx.fillText(countLabel, colX + typeColAnchorCount, rowBaseline);
+    ctx.fillText(pctLabelTxt, colX + typeColAnchorPct, rowBaseline);
   });
   ctx.textAlign = 'left';
-  y += Math.ceil(data.typeRows.length / 2) * typeRowH;
-  y += 26;
 
-  // 5. 迷你半場熱區圖（卡寬 70%→約 83%，置中，點位與字級同步放大見 drawMiniCourt）
-  const courtW = CARD_W * 0.83;
+  const typeRowCount = Math.max(1, Math.ceil(data.typeRows.length / 2));
+  const typeBlockBottom = data.typeRows.length
+    ? typeFirstBaseline + (typeRowCount - 1) * typeRowPitch + typeRowRef.desc
+    : y;
+  y = typeBlockBottom + 40;
+
+  // 5. 迷你半場熱區圖：預設 83% 卡寬，若下方（徽章／網址）空間不夠就縮到 78–80%——
+  // 寧可球場小一點，不准跟下面內容重疊（SPEC §3a 最壞情境：4 球種＋2 徽章＋照片模式）。
+  const badges = [];
+  if (data.achieved) badges.push('挑戰達成 ✓');
+  if (data.personalBest) badges.push('個人最佳');
+
+  const urlBaselineY = CARD_H - 56; // 網址固定貼底，不受上方游標影響
+  const urlAsc = measureAscDesc(ctx, 'shot-ledger.pages.dev', `600 24px ${FONT_FAMILY}`).asc;
+  const GAP_COURT_TO_NEXT = 40;
+  const GAP_BADGES_TO_URL = 34;
+  const BADGE_ROW_H = 56;
+  const GAP_COURT_TO_URL_MIN = 30; // 沒有徽章時，球場到網址文字頂緣至少留這麼多
+
+  const reserveBelowCourt = badges.length
+    ? GAP_COURT_TO_NEXT + BADGE_ROW_H + GAP_BADGES_TO_URL
+    : GAP_COURT_TO_NEXT + GAP_COURT_TO_URL_MIN;
+  const courtBottomMax = urlBaselineY - urlAsc - reserveBelowCourt;
+  const availableCourtH = courtBottomMax - y;
+
+  let courtFraction = 0.83;
+  const courtHDefault = 560 * (CARD_W * courtFraction / 750);
+  if (courtHDefault > availableCourtH) {
+    courtFraction = Math.max(0.78, Math.min(0.83, (availableCourtH * 750) / (560 * CARD_W)));
+  }
+  const courtW = CARD_W * courtFraction;
   const scale = courtW / 750;
   const courtH = 560 * scale;
   const courtX = (CARD_W - courtW) / 2;
   drawMiniCourt(ctx, data.heatSpots, courtX, y, scale, palette.courtLine);
-  y += courtH + 44;
+  y += courtH + GAP_COURT_TO_NEXT;
 
   // 6. 狀態列（有才顯示，最多兩枚扁平徽章）
-  const badges = [];
-  if (data.achieved) badges.push('挑戰達成 ✓');
-  if (data.personalBest) badges.push('個人最佳');
   if (badges.length) {
     let bx = marginX;
     ctx.font = `${palette.badgeWeight} 28px ${FONT_FAMILY}`;
     badges.forEach((label) => {
       const w = ctx.measureText(label).width + 44;
-      roundRectPath(ctx, bx, y, w, 56, 28);
+      roundRectPath(ctx, bx, y, w, BADGE_ROW_H, 28);
       ctx.fillStyle = palette.badgeBg;
       ctx.fill();
       ctx.fillStyle = palette.badgeText;
       ctx.fillText(label, bx + 22, y + 37);
       bx += w + 18;
     });
+    y += BADGE_ROW_H + GAP_BADGES_TO_URL;
   }
 
-  // 7. 底部：網址（小字置中）
+  // 7. 底部：網址（小字置中，固定貼底；上面各段落已依游標預留足夠淨空，不會相撞）
   ctx.textAlign = 'center';
   ctx.fillStyle = palette.muted;
   ctx.font = `600 24px ${FONT_FAMILY}`;
-  ctx.fillText('shot-ledger.pages.dev', CARD_W / 2, CARD_H - 56);
+  ctx.fillText('shot-ledger.pages.dev', CARD_W / 2, urlBaselineY);
   ctx.textAlign = 'left';
 }
 

@@ -712,20 +712,20 @@ a {
   display: none;
 }
 
-/* heat 模式點內只放命中率一行（大、粗）；mk/att 移到點擊後的 .court-info 資訊列。
-   SVG viewBox 750 寬，手機上整顆球場常縮到約 340px（比例 0.46），26px 才能讓
-   實際顯示字高留在可讀範圍（SPEC M4.1 §0/§2）。 */
+/* 熱區命中率字貫穿圓點（SPEC M4.3 §2）：字置中在點上，刻意允許左右突破圓的
+   邊緣做出「貫穿感」，不再用縮字級（--tight）閃避撐爆點的圓框。SVG viewBox
+   750 寬，手機上整顆球場常縮到約 340px（比例 0.46），34px 才能讓實際顯示
+   字高（約 15.5px）留在可讀範圍。paint-order:stroke 加一圈深色細描邊，
+   讓超出圓的部分壓在球場線／深色熱區上也讀得清。 */
 .spot-heat-pct {
-  font-size: 26px;
+  font-size: 34px;
   font-weight: 800;
   fill: #fff;
   pointer-events: none;
   paint-order: stroke;
-}
-
-/* 「100%」四字元較寬，縮字級避免撐爆點的圓框 */
-.spot-heat-pct--tight {
-  font-size: 22px;
+  stroke: rgba(0, 0, 0, 0.35);
+  stroke-width: 3px;
+  stroke-linejoin: round;
 }
 
 /* heat 模式的點擊資訊列：court.js 在 container 內 svg 後面自己加這個 div，
@@ -834,19 +834,26 @@ a {
   text-align: center;
 }
 
+/* 列式排版：每列最多 6 顆，末列不足 6 顆時整列置中（SPEC M4.3 §1）。
+   列距與顆距共用同一 gap 值，視覺節奏一致。 */
 .makes-grid {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  justify-items: center;
+  display: flex;
+  flex-direction: column;
   gap: var(--space-2);
 }
 
-/* 圓形數字鈕，比照球的意象；固定直徑（不隨欄寬拉伸成橢圓），
-   觸控目標維持 ≥44px。最後一顆補滿列尾的按鈕（grid-column: span）
-   同樣是固定直徑圓形，只是置中在較寬的儲存格裡，不會被拉長。 */
+.makes-grid__row {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
+/* 圓形數字鈕，比照球的意象；窄螢幕被 flex 壓縮時用 aspect-ratio 鎖正圓
+   （不然一排 6 顆會被壓成橢圓），觸控目標維持 ≥44px。 */
 .makes-btn {
   width: 48px;
-  height: 48px;
+  height: auto;
+  aspect-ratio: 1;
   min-width: 44px;
   min-height: 44px;
   border-radius: 50%;
@@ -1041,17 +1048,24 @@ a {
   margin-top: calc(var(--space-2) * -1);
 }
 
+/* 列式排版：每列 5 顆、末列不足 5 顆置中，同 .makes-grid 邏輯（SPEC M4.3 §1）。 */
 .stepper-grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  justify-items: center;
+  display: flex;
+  flex-direction: column;
   gap: var(--space-2);
 }
 
-/* 圓形數字鈕（比照 .makes-btn／.seq-ball），固定直徑置中在儲存格內 */
+.stepper-grid__row {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
+/* 圓形數字鈕（比照 .makes-btn／.seq-ball），被壓縮時同樣鎖正圓 */
 .stepper-btn {
   width: 48px;
-  height: 48px;
+  height: auto;
+  aspect-ratio: 1;
   min-width: 44px;
   min-height: 44px;
   border-radius: 50%;
