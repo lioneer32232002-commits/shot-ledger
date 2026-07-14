@@ -203,9 +203,10 @@ function lockIconSvg() {
 // Q 二次貝茲曲線，控制點刻意落在圓內（凸包保證曲線不出圓），不需要另外裁切。
 // viewBox 0 0 100 100 對齊圓半徑 50，可隨按鈕實際尺寸縮放。絕對定位鋪滿鈕面、
 // pointer-events:none、z 序在「SHOT」文字之下（見 .hero-card__cta-stripes）。
+// stroke-width 4（104px 鈕上約 4px）：1.6 的髮絲線在手機上看起來太細碎。
 function basketballStripesSvg() {
   return `<svg class="hero-card__cta-stripes" viewBox="0 0 100 100" aria-hidden="true">
-    <g fill="none" stroke="var(--color-accent-dark)" stroke-width="1.6" stroke-linecap="round">
+    <g fill="none" stroke="var(--color-accent-dark)" stroke-width="4" stroke-linecap="round">
       <path d="M 50 0 L 50 100" />
       <path d="M 0 50 L 100 50" />
       <path d="M 50 0 Q 15 50 50 100" />
@@ -333,12 +334,17 @@ function renderLadderRow(ladder, unlockedIds, passedIds, currentId) {
     if (!unlocked) cls.push('is-locked');
     if (passed) cls.push('is-passed');
     if (isCurrent) cls.push('is-current');
+    // 小格裡不塞整句 passDesc（雙條件＋括號註記會爆版）：直接由 passRule 生成
+    // 一條件一行的精簡版；完整說明仍在變體 sheet 的 sheet__sub。
+    const condHtml = (m.passRule || [])
+      .map((r) => `<span class="nowrap">${typeLabel(r.type)} ≥${r.minPct}%</span>`)
+      .join('');
     return `
       <button class="${cls.join(' ')}" ${unlocked ? `data-open-variant="${m.id}"` : 'disabled'}>
         <span class="ladder-tile__tier">${m.tier}</span>
         <span class="ladder-tile__name">${m.short || m.name}</span>
         ${passed ? '<span class="ladder-tile__check" aria-hidden="true">✓</span>' : ''}
-        ${!unlocked ? `<span class="ladder-tile__lock">${lockIconSvg()}<span class="ladder-tile__cond">${m.passDesc}</span></span>` : ''}
+        ${!unlocked ? `<span class="ladder-tile__lock">${lockIconSvg()}<span class="ladder-tile__cond">${condHtml}</span></span>` : ''}
       </button>
     `;
   }).join('');
@@ -385,10 +391,21 @@ function renderVariantSheetHtml(menu) {
           </button>
         </div>
         ${menu.basis ? `
-          <p class="sheet__basis">📋 菜單依據：${menu.basis.text}<a class="sheet__basis-link" href="${menu.basis.url}" target="_blank" rel="noopener">（${menu.basis.source}）</a></p>
+          <div class="sheet-note">
+            <p class="sheet-note__title">菜單依據</p>
+            <p class="sheet-note__text">${menu.basis.text}</p>
+            <a class="sheet-note__link" href="${menu.basis.url}" target="_blank" rel="noopener">出處：${menu.basis.source} ↗</a>
+          </div>
         ` : ''}
         ${isChallenge ? `
-          <p class="sheet__eligibility-note">誠實機制：完整版總時長需 ≥20 分、簡易版 ≥10 分，且輪與輪節奏不能過快，才會列入解鎖評估；沒達標也照樣存檔進統計。</p>
+          <div class="sheet-note">
+            <p class="sheet-note__title">誠實機制</p>
+            <ul class="sheet-note__list">
+              <li>完整版總時長 ≥20 分、簡易版 ≥10 分</li>
+              <li>輪與輪節奏不過快，才列入解鎖評估</li>
+              <li>沒達標也照樣存檔進統計</li>
+            </ul>
+          </div>
           <p class="sheet__honesty-line">挑戰靠自主誠實——這些數據是投給未來的你看的。</p>
         ` : ''}
       </div>

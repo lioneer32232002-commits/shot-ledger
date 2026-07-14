@@ -1,8 +1,12 @@
 // js/store.js
-// localStorage 讀寫、schema v1→v2 migration、匯出/匯入/CSV、挑戰進度（progress）存取。
+// localStorage 讀寫、schema migration（v1→…→最新）、匯出/匯入/CSV、挑戰進度（progress）存取。
+
+import { MENUS } from './menus.js';
+import { isChallengeEligible, evaluatePassRule } from './stats.js';
+// menus.js / stats.js 都是無相依的純資料／純函式模組，這裡 import 不會形成循環。
 
 const KEY = 'shotledger_v1';
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 
 function emptyProgress() {
   return { unlocked: ['lin_college'], best: {}, badges: [] };
@@ -81,6 +85,36 @@ function migrate(data) {
     if (!data.progress.unlocked.includes('lin_college')) data.progress.unlocked.push('lin_college');
     data.settings.cardBg = 'bg1';
     data.schema = 5;
+  }
+
+  if (data.schema < 6) {
+    // v5 的回填有個副作用：pre-M5 的預設 progress 是 unlocked:['lin']（只是
+    // 「第一關已解鎖」，不代表通過任何關），v5 卻把它當「已推進到舊第 1 關」
+    // 而補解鎖 lin_college／lin_dleague——階梯的「已通過」判定是「下一關已
+    // 解鎖」，於是只開過舊版、從沒練過的裝置也會顯示第 1、2 關已打勾。
+    // v6 修復：整份 unlocked 改用練習紀錄重算——一關只有在 sessions 裡真的有
+    // 「完整版＋誠實機制合格＋passRule 達標」的節才算通過，通過最高關的下一關
+    // 解鎖到此為止。best／badges 不動（都是事後對照展示，不影響通過判定）。
+    const ladder = MENUS.filter((m) => m.challenge).slice().sort((a, b) => a.tier - b.tier);
+    let highestPassedIdx = -1;
+    ladder.forEach((m, i) => {
+      const passed = data.sessions.some(
+        (s) =>
+          s.mode === m.id &&
+          s.variant === 'full' &&
+          s.endedAt &&
+          isChallengeEligible(s) &&
+          evaluatePassRule(s, m.passRule).pass
+      );
+      if (passed) highestPassedIdx = i;
+    });
+    const unlocked = [];
+    for (let i = 0; i <= highestPassedIdx + 1 && i < ladder.length; i += 1) {
+      unlocked.push(ladder[i].id);
+    }
+    if (!data.progress || typeof data.progress !== 'object') data.progress = emptyProgress();
+    data.progress.unlocked = unlocked.length ? unlocked : emptyProgress().unlocked;
+    data.schema = 6;
   }
 
   // 保底：不管資料是從哪個版本進來的，progress / settings.inputMode / settings.weeklyGoal / settings.theme / settings.cardBg 形狀都要正確。

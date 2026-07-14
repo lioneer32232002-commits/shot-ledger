@@ -14,8 +14,12 @@ const CARD_H = 1350;
 
 // 卡片專用色票：與 tokens.css 同值的字面 hex（canvas 內規格允許例外）。
 // 分享卡是紙感設計，固定亮色輸出，不隨 App 深色模式變色（M3 SPEC §0.4）。
+// 紙感背景不再是近白（#FAF9F7 會吃掉 accent 大字），改成暖沙色縱向漸層
+// paperTop→paperBottom；bg 保留給品牌球圖示的十字線色。
 const COLORS = {
   bg: '#FAF9F7',
+  paperTop: '#F3EADC',
+  paperBottom: '#E6D6C0',
   text: '#2B2A28',
   muted: '#6B6053',
   accent: '#E8590C',
@@ -323,8 +327,10 @@ export function drawCard(canvas, data, opts = {}) {
         text: COLORS.text,
         muted: COLORS.muted,
         accent: COLORS.accent,
-        courtLine: COLORS.courtLine,
-        badgeBg: COLORS.sand,
+        // 沙色底比近白深一階，球場線／徽章底也各深一階才拉得開層次：
+        // 線用暖灰褐，徽章底改近白（沙底上反而是淺色會浮起來）。
+        courtLine: '#B7AA92',
+        badgeBg: '#FBF5EC',
         badgeText: COLORS.accent,
         badgeWeight: 700,
         pctShadow: false,
@@ -342,8 +348,34 @@ export function drawCard(canvas, data, opts = {}) {
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, CARD_W, CARD_H);
   } else {
-    ctx.fillStyle = COLORS.bg;
+    // 紙感版：暖沙色縱向漸層取代整面近白——底色本身有色溫，accent 大字
+    // 才不會浮在白紙上被吃掉（使用者回饋：白底會吃掉命中率數字）。
+    const paperGrad = ctx.createLinearGradient(0, 0, 0, CARD_H);
+    paperGrad.addColorStop(0, COLORS.paperTop);
+    paperGrad.addColorStop(1, COLORS.paperBottom);
+    ctx.fillStyle = paperGrad;
     ctx.fillRect(0, 0, CARD_W, CARD_H);
+
+    // 右上角一枚超大的球紋浮水印圓環（呼應 hero 卡刊號浮水印的氛圍手法），
+    // 極低透明度、只當紙上的印刷紋理，不與前景文字搶對比。
+    ctx.save();
+    ctx.strokeStyle = 'rgba(232, 89, 12, 0.07)';
+    ctx.lineWidth = 3;
+    const wmX = CARD_W - 150;
+    const wmY = 210;
+    ctx.beginPath();
+    ctx.arc(wmX, wmY, 300, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(wmX, wmY, 236, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(wmX - 300, wmY);
+    ctx.lineTo(wmX + 300, wmY);
+    ctx.moveTo(wmX, wmY - 300);
+    ctx.lineTo(wmX, wmY + 300);
+    ctx.stroke();
+    ctx.restore();
   }
 
   // -------------------------------------------------------------------------
