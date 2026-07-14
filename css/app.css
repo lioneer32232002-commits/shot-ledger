@@ -3386,18 +3386,30 @@ body.is-home .app-main {
   padding: 0 var(--space-5);
 }
 
+/* 字標：桌面上要撐得住滿版照片，所以跟著視窗放大（手機 26px → 桌面 38px）。
+   name 與 sub 之間用一條短橫線分隔，是版式而不是兩行字疊著。 */
 .home-wordmark__name {
-  font-size: var(--text-lg);
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  font-size: clamp(26px, 3.2vw, 38px);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.015em;
   color: #fff;
+  text-shadow: 0 2px 28px rgba(0, 0, 0, 0.45);
 }
 
 .home-wordmark__sub {
-  margin-top: 2px;
-  font-size: var(--text-xs);
-  letter-spacing: 0.16em;
-  color: rgba(255, 255, 255, 0.55);
+  display: inline-block;
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid rgba(255, 255, 255, 0.28);
+  font-size: clamp(11px, 1vw, 13px);
+  font-weight: 500;
+  letter-spacing: 0.34em;
+  /* letter-spacing 會在最後一個字後面也加一格，看起來像沒對齊左緣的右側留白——
+     負 margin 補回來 */
+  margin-right: -0.34em;
+  color: rgba(255, 255, 255, 0.66);
+  text-shadow: 0 1px 16px rgba(0, 0, 0, 0.45);
 }
 
 /* 捲動提示：一條會呼吸的細線，不是彈跳箭頭 */
@@ -3559,4 +3571,108 @@ body.is-home .app-main {
     animation: none !important;
     opacity: 0.7;
   }
+}
+
+/* ---------------------------------------------------------------------- */
+/* 分頁照片橫幅（SPEC_M6.2）                                                */
+/* 滿版出血：用負 margin 抵銷 .app-main 的 padding，讓照片貼齊螢幕邊緣，     */
+/* 內容區維持原本的紙感卡片。                                               */
+/* ---------------------------------------------------------------------- */
+
+.page-banner {
+  position: relative;
+  height: 196px;
+  margin: calc(var(--space-5) * -1) calc(var(--space-4) * -1) 0;
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
+  isolation: isolate;
+  /* 底部一條 accent 髮絲線，把照片與紙感內容區「收邊」——沒有這條線，
+     照片會像貼上去的，有了就像印刷品的版式。 */
+  border-bottom: 2px solid var(--color-accent);
+}
+
+@media (min-width: 481px) {
+  .page-banner {
+    margin-left: calc(var(--space-5) * -1);
+    margin-right: calc(var(--space-5) * -1);
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  }
+}
+
+.page-banner__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: -2;
+}
+
+/* 壓字層：底部厚、上方薄。四張照片的暗部位置不同，但文字一律壓在左下，
+   所以統一走「底部漸層 ＋ 左下 radial 加深」，比整片半透明黑乾淨。 */
+.page-banner__scrim {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(120% 90% at 0% 100%, rgba(10, 8, 6, 0.72) 0%, rgba(10, 8, 6, 0) 72%),
+    linear-gradient(to top, rgba(10, 8, 6, 0.85) 0%, rgba(10, 8, 6, 0.42) 46%, rgba(10, 8, 6, 0.08) 100%);
+}
+
+.page-banner__title {
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: 0.02em;
+  color: #fff;
+  text-shadow: 0 1px 20px rgba(0, 0, 0, 0.4);
+}
+
+.page-banner__sub {
+  margin-top: var(--space-2);
+  font-size: var(--text-sm);
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.76);
+  text-shadow: 0 1px 14px rgba(0, 0, 0, 0.4);
+}
+
+/* 紀錄／統計這兩張是亮圖（拋光木地板有高光），左下角要壓得更重，白字才吃得住。
+   只加強文字所在的那一角，右半邊的照片維持原本亮度——不是整片壓黑。 */
+.page-banner--history .page-banner__scrim {
+  background:
+    radial-gradient(130% 110% at 0% 100%, rgba(10, 8, 6, 0.9) 0%, rgba(10, 8, 6, 0.5) 48%, rgba(10, 8, 6, 0) 80%),
+    linear-gradient(to top, rgba(10, 8, 6, 0.9) 0%, rgba(10, 8, 6, 0.5) 46%, rgba(10, 8, 6, 0.1) 100%);
+}
+
+.page-banner--stats .page-banner__scrim {
+  background:
+    radial-gradient(130% 110% at 0% 100%, rgba(10, 8, 6, 0.85) 0%, rgba(10, 8, 6, 0.45) 48%, rgba(10, 8, 6, 0) 78%),
+    linear-gradient(to top, rgba(10, 8, 6, 0.88) 0%, rgba(10, 8, 6, 0.45) 46%, rgba(10, 8, 6, 0.08) 100%);
+}
+
+/* 右上角插槽（練球頁的回首頁連結） */
+.page-banner__slot {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-4);
+}
+
+/* 橫幅上的回首頁連結：白字版（原本是紙感底上的灰字） */
+.page-banner__slot .home-link {
+  color: rgba(255, 255, 255, 0.82);
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.5);
+}
+
+.page-banner__slot .home-link:hover,
+.page-banner__slot .home-link:focus-visible {
+  color: #fff;
+}
+
+/* 橫幅是 .page 的第一個孩子，但 .page 的 gap 會在它下面多墊一段——收掉，
+   讓照片與第一張卡之間只有一個標準間距。 */
+.page > .page-banner {
+  margin-bottom: 0;
 }

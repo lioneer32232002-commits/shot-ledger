@@ -5,6 +5,7 @@ import * as store from './store.js';
 import { getMenu } from './menus.js';
 import { pct, aggregate } from './stats.js';
 import { renderSessionSummary, formatDateTime, formatDuration } from './session.js';
+import { pageBannerHtml } from './pagebanner.js';
 
 let root = null;
 let state = null;
@@ -42,7 +43,7 @@ function renderList() {
   if (sessions.length === 0) {
     root.innerHTML = `
       <div class="page page--history">
-        <header class="page-header"><h1>紀錄</h1></header>
+        ${pageBannerHtml("history")}
         <div class="empty-state">
           <div class="empty-state__icon" aria-hidden="true">${emptyIconSvg()}</div>
           <p class="empty-state__title">還沒有任何練習紀錄</p>
@@ -75,7 +76,7 @@ function renderList() {
 
   root.innerHTML = `
     <div class="page page--history">
-      <header class="page-header"><h1>紀錄</h1></header>
+      ${pageBannerHtml("history")}
       <ul class="history-list">${rows}</ul>
     </div>
   `;

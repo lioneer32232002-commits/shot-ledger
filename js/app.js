@@ -10,6 +10,7 @@ import * as homePage from './home.js';
 import { MENUS, ladderMenus } from './menus.js';
 import { BADGE_LABEL, formatThousands } from './session.js';
 import { lifetimeTotals, pct } from './stats.js';
+import { pageBannerHtml } from './pagebanner.js';
 
 const VALID_TABS = ['train', 'stats', 'history', 'settings'];
 const HOME_ROUTE = 'home'; // 首頁：有自己的路由但不佔 tab bar 格子（SPEC_M6 §1）
@@ -205,7 +206,7 @@ function renderSettings() {
 
   settingsRoot.innerHTML = `
     <div class="page page--settings">
-      <header class="page-header"><h1>設定</h1></header>
+      ${pageBannerHtml("settings")}
 
       <section class="settings-card">
         <h2 class="settings-card__title">外觀</h2>

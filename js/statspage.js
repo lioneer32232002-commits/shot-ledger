@@ -9,6 +9,7 @@ import {
   lifetimeTotals,
 } from './stats.js';
 import { formatThousands } from './session.js';
+import { pageBannerHtml } from './pagebanner.js';
 
 const PERIODS = [
   { key: '7', label: '7 天', days: 7 },
@@ -72,7 +73,7 @@ function render() {
 
   root.innerHTML = `
     <div class="page page--stats">
-      <header class="page-header"><h1>統計</h1></header>
+      ${pageBannerHtml("stats")}
       ${renderLifetimeCard()}
       ${renderWeeklyGoalCard(now)}
       ${renderPeriodSwitch()}
