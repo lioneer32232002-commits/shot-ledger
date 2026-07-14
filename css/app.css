@@ -3209,3 +3209,318 @@ a {
     display: none !important;
   }
 }
+
+/* ---------------------------------------------------------------------- */
+/* 首頁 landing（#/home，SPEC_M6）                                          */
+/* 三段全屏照片 ＋ 一屏入口。滿版：body.is-home 收掉 tab bar 與 main padding。 */
+/* ---------------------------------------------------------------------- */
+
+body.is-home .tab-bar {
+  display: none;
+}
+
+body.is-home .app-main {
+  max-width: none;
+  padding: 0;
+}
+
+.page--landing {
+  gap: 0;
+  /* 首頁三屏是暗照片，字一律白色；不隨深淺主題翻轉（第四屏入口才回到主題色）。 */
+  color: #fff;
+}
+
+/* ---- 三段照片 ---- */
+
+.home-hero {
+  position: relative;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end; /* 文字靠底：垂直置中會跟照片主體（球／框）打架 */
+  overflow: hidden;
+  padding: var(--space-7) var(--space-5) var(--space-8);
+}
+
+.home-hero__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.12); /* JS 視差會覆寫成 translate3d + 同倍率；這是無 JS / reduced-motion 的靜態值 */
+  will-change: transform;
+  z-index: 0;
+}
+
+/* scrim 逐段配色：三張照片的亮部位置不同，統一壓一層半透明黑會把照片壓髒。 */
+.home-hero__scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* 01 暗場館：本來就暗，只需要底部把字托起來 ＋ 頂部一點點壓住白色籃板 */
+.home-hero--1 .home-hero__scrim {
+  background:
+    linear-gradient(to top, rgba(10, 8, 6, 0.82) 0%, rgba(10, 8, 6, 0.45) 38%, rgba(10, 8, 6, 0) 62%),
+    linear-gradient(to bottom, rgba(10, 8, 6, 0.45) 0%, rgba(10, 8, 6, 0) 26%);
+}
+
+/* 02 俯視球場：色塊亮，左下角是深藍、右下是亮橘——底部漸層之外再從左下補一顆 radial */
+.home-hero--2 .home-hero__scrim {
+  background:
+    radial-gradient(120% 80% at 8% 100%, rgba(10, 8, 6, 0.6) 0%, rgba(10, 8, 6, 0) 70%),
+    linear-gradient(to top, rgba(10, 8, 6, 0.8) 0%, rgba(10, 8, 6, 0.42) 42%, rgba(10, 8, 6, 0) 68%);
+}
+
+/* 03 夕陽逆光：天空極亮，底部漸層要更厚一點才吃得住白字 */
+.home-hero--3 .home-hero__scrim {
+  background: linear-gradient(
+    to top,
+    rgba(10, 8, 6, 0.86) 0%,
+    rgba(10, 8, 6, 0.5) 40%,
+    rgba(10, 8, 6, 0) 70%
+  );
+}
+
+.home-hero__text,
+.home-wordmark,
+.home-scroll-hint {
+  position: relative;
+  z-index: 2;
+}
+
+.home-hero__text {
+  max-width: 480px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* 序號：細字 ＋ 大字距 ＋ 前置短橫線，等寬數字避免 0/1 抖動 */
+.home-hero__num {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.28em;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.home-hero__num::before {
+  content: '';
+  width: 24px;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.home-hero__title {
+  font-size: clamp(30px, 8vw, 44px);
+  font-weight: 700;
+  line-height: 1.18;
+  letter-spacing: -0.01em;
+  color: #fff;
+  /* 靠陰影撐對比，不用描邊（描邊在照片上會顯髒——M4.4 已全面移除描邊） */
+  text-shadow: 0 1px 24px rgba(0, 0, 0, 0.35);
+}
+
+.home-hero__body {
+  margin-top: var(--space-4);
+  max-width: 19em; /* 一行約 19 個中文字 */
+  font-size: var(--text-lg);
+  line-height: 1.65;
+  color: rgba(255, 255, 255, 0.78);
+  text-shadow: 0 1px 16px rgba(0, 0, 0, 0.35);
+}
+
+/* 字標：只在第一屏。left/right 0 ＋ 內縮到與 .home-hero__text 同一條 480px 欄，
+   否則寬螢幕上字標會貼在最左邊、內文卻置中，兩者對不齊。 */
+.home-wordmark {
+  position: absolute;
+  top: calc(var(--space-7) + env(safe-area-inset-top, 0px));
+  left: 0;
+  right: 0;
+  width: 100%;
+  max-width: calc(480px + var(--space-5) * 2);
+  margin: 0 auto;
+  padding: 0 var(--space-5);
+}
+
+.home-wordmark__name {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #fff;
+}
+
+.home-wordmark__sub {
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  letter-spacing: 0.16em;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* 捲動提示：一條會呼吸的細線，不是彈跳箭頭 */
+.home-scroll-hint {
+  position: absolute;
+  left: 50%;
+  bottom: var(--space-5);
+  transform: translateX(-50%);
+  width: var(--touch-min);
+  height: var(--space-6);
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  cursor: pointer;
+}
+
+.home-scroll-hint__line {
+  width: 1px;
+  height: 20px;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.8));
+  animation: home-hint 2.4s ease-in-out infinite;
+  transform-origin: bottom;
+}
+
+@keyframes home-hint {
+  0%, 100% { transform: scaleY(0.4); opacity: 0.35; }
+  50% { transform: scaleY(1); opacity: 1; }
+}
+
+/* ---- 進場：序號 → 標題 → 內文，錯開 60ms ---- */
+
+.page--landing:not(.is-static) [data-reveal] > * {
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    opacity 520ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    transform 520ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.page--landing:not(.is-static) [data-reveal].is-revealed > * {
+  opacity: 1;
+  transform: none;
+}
+
+.page--landing:not(.is-static) [data-reveal] > *:nth-child(2) { transition-delay: 60ms; }
+.page--landing:not(.is-static) [data-reveal] > *:nth-child(3) { transition-delay: 120ms; }
+.page--landing:not(.is-static) [data-reveal] > *:nth-child(4) { transition-delay: 180ms; }
+
+/* ---- 第四屏：入口（回到 App 的紙感語彙） ---- */
+
+.home-entries {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  background: var(--color-bg);
+  color: var(--color-text);
+  padding: var(--space-8) var(--space-5) calc(var(--space-8) + var(--safe-bottom));
+}
+
+.home-entries__inner {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.home-entries__kicker {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.28em;
+  color: var(--color-accent);
+}
+
+.home-entries__title {
+  margin-top: var(--space-3);
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  line-height: var(--leading-tight);
+  letter-spacing: -0.01em;
+}
+
+.home-entries__list {
+  margin-top: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.home-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  width: 100%;
+  min-height: 76px;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--transition-med),
+    transform var(--transition-med),
+    box-shadow var(--transition-med);
+}
+
+.home-entry:hover,
+.home-entry:focus-visible {
+  border-color: var(--color-accent);
+  box-shadow: var(--shadow-md);
+}
+
+.home-entry:active {
+  transform: scale(0.985);
+}
+
+.home-entry__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.home-entry__title {
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+.home-entry__sub {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.home-entry__arrow {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  color: var(--color-accent);
+  transition: transform var(--transition-med);
+}
+
+.home-entry:hover .home-entry__arrow {
+  transform: translateX(3px);
+}
+
+.home-entries__credit {
+  margin-top: var(--space-6);
+  font-size: var(--text-xs);
+  color: var(--color-text-faint);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-hero__img {
+    transform: scale(1.02) !important; /* 視差關閉，只留極輕微的裁切餘裕 */
+  }
+
+  .home-scroll-hint__line {
+    animation: none !important;
+    opacity: 0.7;
+  }
+}

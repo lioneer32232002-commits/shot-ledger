@@ -6,7 +6,7 @@ import { isChallengeEligible, evaluatePassRule } from './stats.js';
 // menus.js / stats.js 都是無相依的純資料／純函式模組，這裡 import 不會形成循環。
 
 const KEY = 'shotledger_v1';
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 7;
 
 function emptyProgress() {
   return { unlocked: ['lin_college'], best: {}, badges: [] };
@@ -16,7 +16,7 @@ function emptyState() {
   return {
     schema: SCHEMA_VERSION,
     sessions: [],
-    settings: { lastBackupAt: null, inputMode: 'quick', weeklyGoal: null, theme: 'auto', cardBg: 'bg1' },
+    settings: { lastBackupAt: null, inputMode: 'quick', weeklyGoal: null, theme: 'auto', cardBg: 'bg1', homeSeen: false },
     progress: emptyProgress(),
   };
 }
@@ -117,7 +117,19 @@ function migrate(data) {
     data.schema = 6;
   }
 
-  // 保底：不管資料是從哪個版本進來的，progress / settings.inputMode / settings.weeklyGoal / settings.theme / settings.cardBg 形狀都要正確。
+  if (data.schema < 7) {
+    // 首頁 landing（SPEC_M6 §2）。祖父條款：已經在用的人不該升版後被介紹頁擋在門外——
+    // 有任何一次練習、或階梯已解鎖超過第一關，就視同看過首頁，直接進 #/train。
+    // 注意順序：跑在 v6（unlocked 依練習紀錄重算）之後，所以「只開過舊版、從沒練過」
+    // 的裝置這時 unlocked 已被修回 ['lin_college']，會正確地被當成新訪客看到首頁。
+    const hasHistory =
+      data.sessions.length > 0 ||
+      (Array.isArray(data.progress?.unlocked) && data.progress.unlocked.some((id) => id !== 'lin_college'));
+    data.settings.homeSeen = hasHistory;
+    data.schema = 7;
+  }
+
+  // 保底：不管資料是從哪個版本進來的，progress / settings.inputMode / settings.weeklyGoal / settings.theme / settings.cardBg / settings.homeSeen 形狀都要正確。
   if (!data.progress || typeof data.progress !== 'object') data.progress = emptyProgress();
   if (!Array.isArray(data.progress.unlocked)) data.progress.unlocked = ['lin_college'];
   if (!data.progress.unlocked.includes('lin_college')) data.progress.unlocked.push('lin_college');
@@ -127,6 +139,7 @@ function migrate(data) {
   if (!('weeklyGoal' in data.settings)) data.settings.weeklyGoal = null;
   if (!('theme' in data.settings)) data.settings.theme = 'auto';
   if (!['paper', 'bg1', 'bg2', 'bg3', 'bg4', 'bg5'].includes(data.settings.cardBg)) data.settings.cardBg = 'bg1';
+  if (typeof data.settings.homeSeen !== 'boolean') data.settings.homeSeen = false;
 
   return data;
 }
@@ -268,6 +281,13 @@ export function setWeeklyGoal(state, n) {
 /** 設定深色模式偏好：只收 'auto'|'light'|'dark'，其餘一律視為 'auto'。 */
 export function setTheme(state, mode) {
   state.settings.theme = mode === 'light' || mode === 'dark' ? mode : 'auto';
+  save(state);
+}
+
+/** 記下「首頁介紹看過了」：之後裸網址一律直接進 #/train（SPEC_M6 §2）。 */
+export function markHomeSeen(state) {
+  if (state.settings.homeSeen) return;
+  state.settings.homeSeen = true;
   save(state);
 }
 

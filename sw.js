@@ -2,7 +2,7 @@
 // Shot Ledger Service Worker：network-first、離線才吃快取，避免舊版黏住小站。
 // 改版時把 CACHE_NAME 版號遞增，activate 階段會自動清掉舊版快取。
 
-const CACHE_NAME = 'shotledger-v9';
+const CACHE_NAME = 'shotledger-v10';
 
 // 開站必要資源：首頁殼、樣式、全部程式模組、manifest、兩顆 icon。
 // favicon 是 index.html 內嵌的 data URI，不需要另外列。
@@ -13,6 +13,7 @@ const CORE = [
   'css/app.css',
   'js/app.js',
   'js/store.js',
+  'js/home.js',
   'js/session.js',
   'js/statspage.js',
   'js/history.js',
@@ -28,6 +29,9 @@ const CORE = [
   'assets/cardbg/bg3.jpg',
   'assets/cardbg/bg4.jpg',
   'assets/cardbg/bg5.jpg',
+  'assets/home/home1.jpg',
+  'assets/home/home2.jpg',
+  'assets/home/home3.jpg',
 ];
 
 self.addEventListener('install', (event) => {

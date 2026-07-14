@@ -1,15 +1,18 @@
 // js/app.js
-// 進入點、hash router、三分頁殼（練球 #/train、紀錄 #/history、設定 #/settings）。
+// 進入點、hash router、四分頁殼（練球 #/train、統計 #/stats、紀錄 #/history、設定 #/settings）
+// ＋首頁 landing（#/home，不在 tab bar 上）。
 
 import * as store from './store.js';
 import * as trainPage from './session.js';
 import * as statsPage from './statspage.js';
 import * as historyPage from './history.js';
+import * as homePage from './home.js';
 import { MENUS, ladderMenus } from './menus.js';
 import { BADGE_LABEL, formatThousands } from './session.js';
 import { lifetimeTotals, pct } from './stats.js';
 
 const VALID_TABS = ['train', 'stats', 'history', 'settings'];
+const HOME_ROUTE = 'home'; // 首頁：有自己的路由但不佔 tab bar 格子（SPEC_M6 §1）
 
 // ---------------------------------------------------------------------------
 // 深色模式（schema v4 settings.theme：'auto'|'light'|'dark'）
@@ -67,7 +70,13 @@ if ('serviceWorker' in navigator) {
 }
 
 const settingsPage = { mount: mountSettings, unmount: unmountSettings };
-const routes = { train: trainPage, stats: statsPage, history: historyPage, settings: settingsPage };
+const routes = {
+  train: trainPage,
+  stats: statsPage,
+  history: historyPage,
+  settings: settingsPage,
+  [HOME_ROUTE]: homePage,
+};
 
 const view = document.getElementById('view');
 const tabBar = document.getElementById('tab-bar');
@@ -75,9 +84,15 @@ const tabButtons = Array.from(tabBar.querySelectorAll('.tab-item'));
 
 let currentModule = null;
 
+/** 裸網址（或非法 hash）的落點：沒看過首頁的新訪客送去 #/home，其餘直接進 #/train。 */
+function defaultRoute() {
+  return store.load().settings.homeSeen ? 'train' : HOME_ROUTE;
+}
+
 function parseHash() {
   const raw = (location.hash || '').replace(/^#\/?/, '');
-  return VALID_TABS.includes(raw) ? raw : 'train';
+  if (raw === HOME_ROUTE) return HOME_ROUTE; // 手動打 #/home 永遠回得去，不管 homeSeen
+  return VALID_TABS.includes(raw) ? raw : defaultRoute();
 }
 
 function updateTabBar(activeTab) {
@@ -212,6 +227,13 @@ function renderSettings() {
       </section>
 
       <section class="settings-card">
+        <h2 class="settings-card__title">關於本站</h2>
+        <div class="settings-actions">
+          <button class="btn btn--secondary" data-action="show-home">重看首頁介紹</button>
+        </div>
+      </section>
+
+      <section class="settings-card">
         <h2 class="settings-card__title">備份與轉移</h2>
         <div class="settings-actions">
           <button class="btn btn--secondary" data-action="export-json">匯出 JSON</button>
@@ -266,6 +288,10 @@ function renderSettings() {
       applyTheme();
       renderSettings();
     });
+  });
+
+  settingsRoot.querySelector('[data-action="show-home"]').addEventListener('click', () => {
+    location.hash = '#/home';
   });
 
   importInputEl = settingsRoot.querySelector('[data-role="import-input"]');
@@ -346,7 +372,7 @@ function showSettingsMessage(msg) {
 window.addEventListener('hashchange', render);
 
 if (!location.hash) {
-  location.hash = '#/train';
+  location.hash = `#/${defaultRoute()}`; // 新訪客 → #/home；看過的人 → #/train
 } else {
   render();
 }
