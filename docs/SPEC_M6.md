@@ -22,11 +22,11 @@
   - 否則 → `#/train`（現行行為不變）
 - 使用者手動打 `#/home` 永遠可以回到首頁（不論 homeSeen）。
 
-## 2. store schema v5 → v6
+## 2. store schema v6 → v7
 
-`settings.homeSeen: boolean`（預設 `false`）。
+`settings.homeSeen: boolean`（預設 `false`）。（原規劃為 v5→v6，因遠端 M5.2 已占用 v6——unlocked 依練習紀錄重算——本輪順延為 v7，且跑在 v6 之後。）
 
-**遷移的祖父條款**：v5→v6 時，**已經有任何 session 或任何 progress.unlocked 超過第一關的舊用戶
+**遷移的祖父條款**：v6→v7 時，**已經有任何 session 或任何 progress.unlocked 超過第一關的舊用戶
 一律設 `homeSeen = true`**，避免既有使用者升版後突然被一個介紹頁擋在門外。全新使用者才是 `false`。
 
 寫入時機：首頁上按下「開始練球」或任一訓練入口卡 → `store.markHomeSeen()` → `homeSeen = true`。
@@ -109,14 +109,14 @@ Unsplash`），`--text-xs`、`--color-text-faint`。
 
 ## 5. Service Worker
 
-`CACHE_NAME` `shotledger-v8` → **`shotledger-v9`**；`CORE` 加入 `js/home.js` 與三張
+`CACHE_NAME` `shotledger-v9` → **`shotledger-v10`**；`CORE` 加入 `js/home.js` 與三張
 `assets/home/home*.jpg`。
 
 ## 6. 驗收
 
 1. 全新使用者（清空 localStorage）：開 `/` → 落在 `#/home`；三段照片、進場動畫、視差都在。
 2. 按「開始練球」→ 進 `#/train`；重新整理 `/` → **直接 `#/train`**（不再回首頁）。
-3. 舊使用者遷移：造一份 v5、含 sessions 的 localStorage → 升版後 `homeSeen === true`，
+3. 舊使用者遷移：造一份含 sessions 的舊 localStorage → 升版後 `homeSeen === true`，
    開 `/` 直接進 `#/train`（祖父條款）。
 4. 入口卡 2／3 → 進 train 分頁且該菜單的變體選擇面板已開。
 5. 設定頁「重看首頁介紹」→ 回得去 `#/home`。
