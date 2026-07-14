@@ -125,6 +125,11 @@ function render() {
   updateTabBar(tab);
   currentModule = routes[tab];
   currentModule.mount(view);
+
+  // 換頁一律回到頁首。捲動位置是掛在 window 上的，換 hash 只換掉 #view 的內容、
+  // 不會動到 scrollY——從首頁第四屏（已往下捲三屏）點入口進 #/train，畫面就會停在
+  // 階梯那一段，橫幅照片與上方說明整段被跳過。四個分頁互切也有同樣的問題。
+  window.scrollTo(0, 0);
 }
 
 // ---------------------------------------------------------------------------

@@ -1095,11 +1095,27 @@ a {
   text-align: center;
 }
 
+/* 模式說明（menu.focus）：接在標題下，讓人在選簡易／完整之前先知道這個模式在做什麼。
+   跟 .sheet__sub 同樣以負 margin 收緊與標題的距離，兩者並存時（挑戰菜單）依序疊放。 */
+.sheet__focus {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  text-align: center;
+  margin-top: calc(var(--space-2) * -1);
+  text-wrap: pretty;
+}
+
 .sheet__sub {
   font-size: var(--text-sm);
   color: var(--color-text-muted);
   text-align: center;
   margin-top: calc(var(--space-2) * -1);
+}
+
+/* 挑戰菜單同時有 focus 與 sub 時，sub 是「解鎖條件」，要跟說明再拉開一點層次 */
+.sheet__focus + .sheet__sub {
+  margin-top: calc(var(--space-3) * -1);
+  color: var(--color-text-faint);
 }
 
 /* 列式排版：每列 5 顆、末列不足 5 顆置中，同 .makes-grid 邏輯（SPEC M4.3 §1）。 */

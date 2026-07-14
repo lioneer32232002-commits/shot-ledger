@@ -73,12 +73,8 @@ export function mount(container) {
     const menuId = pendingOpen;
     pendingOpen = null;
     const menu = getMenu(menuId);
-    // 沒有變體的菜單（free）直接開始；其餘（world / 挑戰菜單）停在變體選擇面板。
-    if (menu && !menu.easy) {
-      activeSession = null;
-      startSession(menuId, null);
-      return;
-    }
+    // 一律停在練球頁＋該菜單的面板（含 free）：從首頁過來的人還沒看過模式說明，
+    // 直接開始 session 會讓他不知道自己選到了什麼。面板是底部彈出，上方橫幅仍看得見。
     view = 'home';
     variantSheetMenuId = menu ? menuId : null;
     renderView();
@@ -393,21 +389,34 @@ function renderSecondaryCard(menu) {
 
 function renderVariantSheetHtml(menu) {
   const isChallenge = menu.challenge;
+  // 沒有變體的菜單（free）也走這個面板：先講清楚這個模式在做什麼，再給一顆「開始練習」。
+  // 從首頁入口直接 startSession 會讓人一頭撞進記錄畫面，不知道自己選到了什麼。
+  const hasVariants = Boolean(menu.easy);
+  const optionsHtml = hasVariants
+    ? `
+        <button class="variant-option" data-variant="easy">
+          <span class="variant-option__name">簡易版</span>
+          <span class="variant-option__meta">約 ${menu.est.easy} 分・${menu.easy.length} 輪・${menu.easy.length * 10} 球</span>
+        </button>
+        <button class="variant-option" data-variant="full">
+          <span class="variant-option__name">完整版</span>
+          <span class="variant-option__meta">約 ${menu.est.full} 分・${menu.full.length} 輪・${menu.full.length * 10} 球</span>
+        </button>
+      `
+    : `
+        <button class="variant-option" data-variant="">
+          <span class="variant-option__name">開始練習</span>
+          <span class="variant-option__meta">不限輪數・隨時可結束</span>
+        </button>
+      `;
+
   return `
     <div class="sheet-backdrop" data-action="close-variant">
       <div class="sheet">
         <h3 class="sheet__title">${menu.name}</h3>
+        <p class="sheet__focus">${menu.focus}</p>
         ${isChallenge ? `<p class="sheet__sub">解鎖下一關只認完整版：${menu.passDesc}</p>` : ''}
-        <div class="variant-options">
-          <button class="variant-option" data-variant="easy">
-            <span class="variant-option__name">簡易版</span>
-            <span class="variant-option__meta">約 ${menu.est.easy} 分・${menu.easy.length} 輪・${menu.easy.length * 10} 球</span>
-          </button>
-          <button class="variant-option" data-variant="full">
-            <span class="variant-option__name">完整版</span>
-            <span class="variant-option__meta">約 ${menu.est.full} 分・${menu.full.length} 輪・${menu.full.length * 10} 球</span>
-          </button>
-        </div>
+        <div class="variant-options">${optionsHtml}</div>
         ${menu.basis ? `
           <div class="sheet-note">
             <p class="sheet-note__title">菜單依據</p>
@@ -550,7 +559,7 @@ function bindVariantSheet() {
   });
   root.querySelectorAll('[data-variant]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      const variant = btn.dataset.variant;
+      const variant = btn.dataset.variant || null; // free 的「開始練習」給空字串，要還原成 null
       const menuId = variantSheetMenuId;
       variantSheetMenuId = null;
       startSession(menuId, variant);
