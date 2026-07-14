@@ -159,7 +159,7 @@ function renderSettings() {
   const badges = settingsState.progress.badges;
   const reminderHtml =
     unbacked > 5
-      ? `<p class="settings-reminder">已累積 ${unbacked} 節尚未備份，建議匯出一份 JSON 存起來。</p>`
+      ? `<p class="settings-reminder">已累積 ${unbacked} 次練習尚未備份，建議匯出一份 JSON 存起來。</p>`
       : '';
 
   const badgesHtml = badges.length
@@ -199,7 +199,7 @@ function renderSettings() {
 
       <section class="settings-card">
         <h2 class="settings-card__title">資料狀態</h2>
-        <p class="settings-card__row">目前共 <strong class="nowrap">${sessionCount} 節</strong> / <strong class="nowrap">${roundCount} 輪</strong></p>
+        <p class="settings-card__row">目前共 <strong class="nowrap">${sessionCount} 次練習</strong> / <strong class="nowrap">${roundCount} 輪</strong></p>
         <p class="settings-card__row">挑戰階梯：已解鎖 <strong class="nowrap">${unlocked}/${total} 關</strong></p>
         <p class="settings-card__row">生涯累計：<strong class="nowrap">${formatThousands(lifetime.att)} 投</strong> / <strong class="nowrap">${formatThousands(lifetime.mk)} 中</strong>${lifetimePct === null ? '' : `<span class="nowrap">（${lifetimePct}%）</span>`}</p>
         <p class="settings-card__row nowrap">上次備份：${formatBackupTime(settingsState.settings.lastBackupAt)}</p>

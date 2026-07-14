@@ -46,7 +46,7 @@ function renderList() {
         <div class="empty-state">
           <div class="empty-state__icon" aria-hidden="true">${emptyIconSvg()}</div>
           <p class="empty-state__title">還沒有任何練習紀錄</p>
-          <p class="empty-state__desc">去「練球」分頁選個模式，投完第一節就會出現在這裡。</p>
+          <p class="empty-state__desc">去「練球」分頁選個模式，完成第一次練習就會出現在這裡。</p>
         </div>
       </div>
     `;
@@ -100,7 +100,7 @@ function renderDetail() {
     <div class="page page--history-detail">
       <header class="page-header page-header--with-back">
         <button class="back-btn" data-action="back" aria-label="返回紀錄列表">←</button>
-        <h1>節詳情</h1>
+        <h1>練習詳情</h1>
       </header>
       <div id="detail-mount"></div>
     </div>
@@ -129,7 +129,7 @@ function renderDetail() {
 
   if (confirmDelete) {
     const btn = root.querySelector('[data-summary-action="delete"]');
-    if (btn) btn.textContent = '確定要刪除此節？再按一次刪除';
+    if (btn) btn.textContent = '確定要刪除這次練習？再按一次刪除';
   }
 }
 

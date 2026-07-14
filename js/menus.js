@@ -42,11 +42,11 @@
 export const MENUS = [
   {
     id: 'lin_college', name: 'Jeremy Lin 哈佛時期', short: 'Lin 哈佛', player: 'Jeremy Lin', playerStatus: 'retired', tier: 1,
-    focus: '禁區＋近距中距的大學基本功，罰球收尾', inspired: true, challenge: true,
+    focus: '課表式基本功：禁區雙連發起手，罰球穿插在課表中段', inspired: true, challenge: true,
     passRule: [{ type: '2pt', minPct: 45 }],
     passDesc: '2 分 ≥45%',
-    easy: ['paint', 'mid_top', 'paint', 'mid_lw', 'ft', 'ft'],
-    full: ['paint', 'mid_lw', 'mid_top', 'mid_rw', 'paint', 'ft', 'paint', 'mid_lw', 'mid_top', 'paint', 'ft', 'ft'],
+    easy: ['paint', 'paint', 'mid_top', 'ft', 'mid_lw', 'ft'],
+    full: ['paint', 'paint', 'mid_lw', 'mid_top', 'ft', 'paint', 'mid_rw', 'mid_top', 'ft', 'paint', 'mid_lw', 'ft'],
     est: { easy: 30, full: 60 },
     career: { label: '哈佛 2006–10', years: '2006–10', fg: 48.1, tp: 33.3, ft: 73.3, tpm: 108, fact: '大四獲教練團一致票選 All-Ivy 第一隊的哈佛控衛' },
     basis: {
@@ -56,11 +56,11 @@ export const MENUS = [
   },
   {
     id: 'lin_dleague', name: 'Jeremy Lin 發展聯盟', short: 'Lin 發展聯盟', player: 'Jeremy Lin', playerStatus: 'retired', tier: 2,
-    focus: '中距＋禁區混合，發展聯盟的生存強度', inspired: true, challenge: true,
+    focus: '左右翼折返：中距兩翼來回穿梭，練體能也練穩定', inspired: true, challenge: true,
     passRule: [{ type: '2pt', minPct: 48 }, { type: 'ft', minPct: 65 }],
     passDesc: '2 分 ≥48% 且罰球 ≥65%',
-    easy: ['paint', 'mid_lw', 'mid_rw', 'paint', 'ft', 'ft'],
-    full: ['mid_lw', 'mid_top', 'mid_rw', 'paint', 'paint', 'ft', 'mid_lw', 'mid_top', 'mid_rw', 'paint', 'ft', 'ft'],
+    easy: ['mid_lw', 'mid_rw', 'mid_lw', 'mid_rw', 'ft', 'ft'],
+    full: ['mid_lw', 'mid_rw', 'mid_lw', 'mid_rw', 'ft', 'paint', 'mid_rw', 'mid_lw', 'mid_rw', 'mid_lw', 'ft', 'ft'],
     est: { easy: 30, full: 60 },
     career: { label: '發展聯盟 2010–11', years: '2010–11', fg: 47.7, tp: 38.9, ft: 71.8, tpm: 14, fact: '在雷諾大角羊場均 18 分，入選 Showcase 第一隊後被勇士召回' },
     basis: {
@@ -84,11 +84,11 @@ export const MENUS = [
   },
   {
     id: 'dirk_rookie', name: 'Dirk 新秀課表', short: 'Dirk 新秀', player: 'Dirk Nowitzki', playerStatus: 'retired', tier: 4,
-    focus: '45°＋罰球線頂中距的新秀起步', inspired: true, challenge: true,
+    focus: '新秀單點鑽研：罰球線頂反覆磨到熟', inspired: true, challenge: true,
     passRule: [{ type: '2pt', minPct: 52 }],
     passDesc: '2 分 ≥52%',
-    easy: ['mid_lw', 'mid_top', 'mid_rw', 'paint', 'mid_top', 'ft'],
-    full: ['mid_lw', 'mid_top', 'mid_rw', 'mid_top', 'paint', 'ft', 'mid_lw', 'mid_top', 'mid_rw', 'paint', 'ft', 'ft'],
+    easy: ['mid_top', 'mid_top', 'mid_lw', 'mid_top', 'mid_rw', 'ft'],
+    full: ['mid_top', 'mid_top', 'mid_lw', 'mid_top', 'mid_top', 'ft', 'mid_rw', 'mid_top', 'mid_top', 'paint', 'mid_top', 'ft'],
     est: { easy: 30, full: 60 },
     career: { label: 'NBA 1998–99 新秀季', years: '1998–99', fg: 40.5, tp: 20.6, ft: 77.3, tpm: 14, fact: '自陳「浪費掉的一年」，隔季轉型大爆發的起點' },
     basis: {
@@ -112,11 +112,11 @@ export const MENUS = [
   },
   {
     id: 'allen_bucks', name: 'Ray Allen 雄鹿時期', short: 'Allen 雄鹿', player: 'Ray Allen', playerStatus: 'retired', tier: 6,
-    focus: '雄鹿時期的三分開荒，五點三分＋中距補強', inspired: true, challenge: true,
+    focus: '底角專攻：兩側底角雙連發，練出底角殺手本能', inspired: true, challenge: true,
     passRule: [{ type: '3pt', minPct: 32 }],
     passDesc: '3 分 ≥32%',
-    easy: ['3pt_lc', '3pt_rc', '3pt_top', 'mid_top', 'ft', 'ft'],
-    full: ['3pt_lc', '3pt_rc', '3pt_lw', '3pt_rw', '3pt_top', 'ft', 'mid_lw', 'mid_top', 'mid_rw', '3pt_top', 'ft', 'ft'],
+    easy: ['3pt_lc', '3pt_lc', '3pt_rc', '3pt_rc', 'mid_top', 'ft'],
+    full: ['3pt_lc', '3pt_lc', '3pt_rc', '3pt_rc', 'mid_top', 'ft', '3pt_rc', '3pt_lc', 'mid_lw', 'mid_rw', 'ft', 'ft'],
     est: { easy: 30, full: 60 },
     career: { label: 'NBA 公鹿時期 1996–2003', years: '1996–2003', fg: 45.0, tp: 40.6, ft: 87.9, tpm: 1051, fact: '2001 年三分大賽決賽連中十球逆轉封王' },
     basis: {
@@ -140,11 +140,11 @@ export const MENUS = [
   },
   {
     id: 'klay_rise', name: 'Klay 新秀跳投', short: 'Klay 新秀', player: 'Klay Thompson', playerStatus: 'active', tier: 8,
-    focus: '新秀年的接球跳投雛形，三分五點＋中距串接', inspired: true, challenge: true,
+    focus: '新秀磨手感：同一點連兩輪，穩了才換點', inspired: true, challenge: true,
     passRule: [{ type: '3pt', minPct: 38 }],
     passDesc: '3 分 ≥38%',
-    easy: ['3pt_lw', '3pt_top', '3pt_rw', 'mid_top', '3pt_top', 'ft'],
-    full: ['3pt_lc', '3pt_lw', '3pt_top', '3pt_rw', '3pt_rc', 'ft', 'mid_lw', 'mid_top', 'mid_rw', '3pt_top', 'ft', 'ft'],
+    easy: ['3pt_lw', '3pt_lw', '3pt_top', '3pt_top', '3pt_rw', 'ft'],
+    full: ['3pt_lw', '3pt_lw', '3pt_top', '3pt_top', '3pt_rw', '3pt_rw', 'ft', '3pt_lc', '3pt_lc', 'mid_top', 'ft', 'ft'],
     est: { easy: 30, full: 60 },
     career: { label: 'NBA 2011–12 新秀季', years: '2011–12', fg: 44.3, tp: 41.4, ft: 86.8, tpm: 111, fact: '新秀季三分命中率 41.4% 領先全體新秀，入選最佳新秀陣容' },
     basis: {
@@ -182,11 +182,11 @@ export const MENUS = [
   },
   {
     id: 'curry_mvp', name: 'Curry MVP 球季', short: 'Curry MVP', player: 'Stephen Curry', playerStatus: 'active', tier: 11,
-    focus: 'MVP 球季的全點位三分量產＋深三初探', inspired: true, challenge: true,
+    focus: '由近而遠爬坡：中距→三分→深三，一趟一趟拉遠', inspired: true, challenge: true,
     passRule: [{ type: '3pt', minPct: 42 }],
     passDesc: '3 分 ≥42%',
-    easy: ['3pt_lw', '3pt_top', '3pt_rw', 'deep_top', '3pt_top', 'ft'],
-    full: ['3pt_lc', '3pt_lw', '3pt_top', '3pt_rw', '3pt_rc', 'deep_top', '3pt_lw', '3pt_top', '3pt_rw', 'deep_top', 'ft', 'ft'],
+    easy: ['mid_top', '3pt_top', 'deep_top', '3pt_lw', '3pt_rw', 'ft'],
+    full: ['mid_top', '3pt_lw', 'deep_l', 'mid_top', '3pt_top', 'deep_top', 'mid_top', '3pt_rw', 'deep_r', '3pt_top', 'ft', 'ft'],
     est: { easy: 30, full: 60 },
     career: { label: 'NBA 2015–16 MVP 球季', years: '2015–16', fg: 50.4, tp: 45.4, ft: 90.8, tpm: 402, fact: '史上唯一全票 MVP，單季 402 顆三分至今無人接近' },
     basis: {

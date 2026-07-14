@@ -6,7 +6,9 @@ import * as store from './store.js';
 import { renderCourt } from './court.js';
 import {
   aggregate, pct, sessionsInRange, pctSeries, calendarCells, avgRoundCurve, earlyLateSplit, weekAttempts,
+  lifetimeTotals,
 } from './stats.js';
+import { formatThousands } from './session.js';
 
 const PERIODS = [
   { key: '7', label: '7 天', days: 7 },
@@ -71,6 +73,7 @@ function render() {
   root.innerHTML = `
     <div class="page page--stats">
       <header class="page-header"><h1>統計</h1></header>
+      ${renderLifetimeCard()}
       ${renderWeeklyGoalCard(now)}
       ${renderPeriodSwitch()}
       ${renderTrendSection(now, period)}
@@ -86,6 +89,30 @@ function render() {
 
   const scrollEl = root.querySelector('[data-role="heat-cal-scroll"]');
   if (scrollEl) scrollEl.scrollLeft = scrollEl.scrollWidth;
+}
+
+// ---------------------------------------------------------------------------
+// 1.1 生涯累計卡（SPEC M5.1 §3：總球數一眼可見，回答「總球數去哪看」）
+// ---------------------------------------------------------------------------
+
+function renderLifetimeCard() {
+  const lifetime = lifetimeTotals(state.sessions);
+  const lifetimePct = pct(lifetime.mk, lifetime.att);
+  // 練習次數只算已結束的 session；輪次含進行中的一節（與設定頁「N 次練習 / M 輪」算法一致）。
+  const sessionCount = state.sessions.filter((s) => s.endedAt !== null).length;
+  const roundCount = state.sessions.reduce((sum, s) => sum + s.rounds.length, 0);
+
+  return `
+    <section class="lifetime-card">
+      <h2 class="section-title">生涯累計</h2>
+      <div class="lifetime-card__totals">
+        <div class="lifetime-card__total"><div class="lifetime-card__num">${formatThousands(lifetime.att)}</div><div class="lifetime-card__label">總投</div></div>
+        <div class="lifetime-card__total"><div class="lifetime-card__num">${formatThousands(lifetime.mk)}</div><div class="lifetime-card__label">總中</div></div>
+        <div class="lifetime-card__total"><div class="lifetime-card__num lifetime-card__num--accent">${lifetimePct === null ? '—' : lifetimePct + '%'}</div><div class="lifetime-card__label">命中率</div></div>
+      </div>
+      <p class="lifetime-card__meta nowrap">${sessionCount} 次練習・${roundCount} 輪</p>
+    </section>
+  `;
 }
 
 // ---------------------------------------------------------------------------
@@ -185,7 +212,7 @@ function keyToLocalMs(key) {
 
 function renderPctChart(series, bucket) {
   if (series.length < 2) {
-    return `<p class="stats-empty-note">至少要有兩天的紀錄才能畫趨勢——今天投一節吧</p>`;
+    return `<p class="stats-empty-note">至少要有兩天的紀錄才能畫趨勢——今天練一次吧</p>`;
   }
 
   const W = 320;
@@ -419,7 +446,7 @@ function renderFatigueSection(period, now) {
 
   let curveBlock;
   if (curve.length < 4) {
-    curveBlock = `<p class="stats-empty-note">多練幾節完整版，才看得出第幾輪開始掉</p>`;
+    curveBlock = `<p class="stats-empty-note">多練幾次完整版，才看得出第幾輪開始掉</p>`;
   } else {
     const early = sumRange(curve, 0, 3);
     const late = sumRange(curve, 3, curve.length);
@@ -458,7 +485,7 @@ function renderFatigueSection(period, now) {
     <section class="stats-block">
       <h2 class="section-title">疲勞趨勢</h2>
       <div class="stats-subsection">
-        <h3 class="stats-subtitle">輪次曲線（跨節平均）</h3>
+        <h3 class="stats-subtitle">輪次曲線（多次練習平均）</h3>
         ${curveBlock}
       </div>
       <div class="stats-subsection">

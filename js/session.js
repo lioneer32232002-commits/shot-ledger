@@ -791,7 +791,7 @@ function renderActive() {
       ` : ''}
 
       <footer class="active-footer">
-        <button class="btn btn--ghost-danger" data-action="${confirmDiscard ? 'discard-confirm' : 'discard-ask'}">${confirmDiscard ? '確定放棄整節？' : '放棄'}</button>
+        <button class="btn btn--ghost-danger" data-action="${confirmDiscard ? 'discard-confirm' : 'discard-ask'}">${confirmDiscard ? '確定放棄這次練習？' : '放棄'}</button>
         <button class="btn btn--primary" data-action="end-session" ${doneCount === 0 ? 'disabled' : ''}>結束練習</button>
       </footer>
     </div>
@@ -1245,7 +1245,7 @@ function renderEquivalentTierSection(menu, session) {
   if (!result) return '';
   return `
     <section class="equivalent-card">
-      <p class="equivalent-card__headline">本節表現相當於 <span class="nowrap">第 ${result.tier} 關</span>・${result.name} 的過關水準</p>
+      <p class="equivalent-card__headline">這次練習相當於 <span class="nowrap">第 ${result.tier} 關</span>・${result.name} 的過關水準</p>
       <p class="equivalent-card__note">僅供對照，不解鎖關卡——挑戰請照階梯一關一關過</p>
     </section>
   `;
@@ -1278,7 +1278,7 @@ function renderChallengeSection(menu, session, justFinished) {
 
   let bannerHtml;
   if (!eligible) {
-    bannerHtml = `<p class="challenge-note challenge-note--neutral">本節節奏低於真實練習下限，不列入解鎖評估。</p>`;
+    bannerHtml = `<p class="challenge-note challenge-note--neutral">這次練習節奏低於真實下限，不列入解鎖評估。</p>`;
   } else if (evalRes.pass) {
     bannerHtml = `<p class="challenge-note challenge-note--pass">挑戰通過！</p>`;
   } else {
@@ -1370,7 +1370,7 @@ export function renderSessionSummary(container, session, allSessions, opts = {})
         <div class="summary__total"><div class="summary__total-num summary__total-num--accent">${totalPct === null ? '—' : totalPct + '%'}</div><div class="summary__total-label">命中率</div></div>
       </div>
 
-      <ul class="type-list">${typeRows || '<li class="type-row type-row--empty">這節沒有任何紀錄</li>'}</ul>
+      <ul class="type-list">${typeRows || '<li class="type-row type-row--empty">這次練習沒有任何紀錄</li>'}</ul>
 
       ${curveHtml}
       ${splitHtml}
@@ -1383,7 +1383,7 @@ export function renderSessionSummary(container, session, allSessions, opts = {})
       <div class="summary__actions">
         <button class="btn btn--secondary summary__actions-share" data-summary-action="share">分享成績卡</button>
         <div class="summary__actions-row">
-          ${onDelete ? `<button class="btn btn--ghost-danger" data-summary-action="delete">刪除此節</button>` : ''}
+          ${onDelete ? `<button class="btn btn--ghost-danger" data-summary-action="delete">刪除這次練習</button>` : ''}
           ${onDone ? `<button class="btn btn--primary" data-summary-action="done">完成</button>` : ''}
         </div>
       </div>
