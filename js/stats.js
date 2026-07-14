@@ -475,6 +475,56 @@ export function avgRoundCurve(sessions) {
   return perRound.slice(0, cutoff).map((r, i) => ({ round: i + 1, att: r.att, mk: r.mk, pct: pct(r.mk, r.att) }));
 }
 
+// ---------------------------------------------------------------------------
+// M5：每輪達標預估（以「已完成輪的實際數字＋未來輪每輪 futureAttempts 球」
+// 估算每條 passRule 還差幾顆、數學上是否仍可能達標）
+// ---------------------------------------------------------------------------
+
+/**
+ * 挑戰達標預估：以「已完成輪的實際數字＋未來輪每輪 10 球」估算每條 passRule
+ * 還需要進幾球、以及數學上是否仍可能達標。
+ * @param {Array} rounds 已完成輪（session.rounds）
+ * @param {Array<{type:string, minPct:number}>} rules menu.passRule
+ * @param {Array<string>} futureTypes 剩餘輪次的球種陣列（呼叫端由 seqList 剩餘段 map 成 type）
+ * @param {number} [futureAttempts=10] 未來每輪的假設球數
+ * @returns {{feasible:boolean, detail:Array}|null} rules 為空（或非陣列）回傳 null
+ */
+export function challengeForecast(rounds, rules, futureTypes, futureAttempts = 10) {
+  if (!Array.isArray(rules) || rules.length === 0) return null;
+
+  const agg = aggregate(rounds);
+  const types = futureTypes || [];
+
+  const detail = rules.map((r) => {
+    const d = agg.byType[r.type];
+    const att = d ? d.att : 0;
+    const mk = d ? d.mk : 0;
+
+    const futureCount = types.filter((t) => t === r.type).length;
+    const futureAtt = futureCount * futureAttempts;
+    const plannedAtt = att + futureAtt;
+
+    // 沿用 pctGapToShots 的 -1e-9 epsilon 手法：避免「剛好整除」時的浮點誤差
+    // 把 needMakes 多進位一顆（例如 55% × 120 該是 66，不能因浮點變 67）。
+    const needMakes = Math.ceil((r.minPct * plannedAtt) / 100 - 1e-9);
+    const remainingNeed = Math.max(0, needMakes - mk);
+    const feasible = remainingNeed <= futureAtt;
+
+    // 只有「下一輪」剛好是這個球種時才給出具體本輪目標，且不超過該輪實際球數上限；
+    // 其餘輪次分攤平均、無條件進位（寧可多要求一顆，不要低估難度）。
+    const nextRoundNeed = types[0] === r.type && remainingNeed > 0
+      ? Math.min(futureAttempts, Math.ceil(remainingNeed / futureCount))
+      : null;
+
+    return {
+      type: r.type, need: r.minPct, att, mk, futureAtt, plannedAtt,
+      needMakes, remainingNeed, feasible, nextRoundNeed,
+    };
+  });
+
+  return { feasible: detail.every((d) => d.feasible), detail };
+}
+
 /**
  * 本週（週一 00:00 起，本地時區）累計出手／命中，含進行中的節。
  * @param {Array} sessions

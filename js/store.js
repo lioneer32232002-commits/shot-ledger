@@ -2,17 +2,17 @@
 // localStorage 讀寫、schema v1→v2 migration、匯出/匯入/CSV、挑戰進度（progress）存取。
 
 const KEY = 'shotledger_v1';
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 function emptyProgress() {
-  return { unlocked: ['lin'], best: {}, badges: [] };
+  return { unlocked: ['lin_college'], best: {}, badges: [] };
 }
 
 function emptyState() {
   return {
     schema: SCHEMA_VERSION,
     sessions: [],
-    settings: { lastBackupAt: null, inputMode: 'quick', weeklyGoal: null, theme: 'auto' },
+    settings: { lastBackupAt: null, inputMode: 'quick', weeklyGoal: null, theme: 'auto', cardBg: 'bg1' },
     progress: emptyProgress(),
   };
 }
@@ -52,15 +52,47 @@ function migrate(data) {
     data.schema = 4;
   }
 
-  // 保底：不管資料是從哪個版本進來的，progress / settings.inputMode / settings.weeklyGoal / settings.theme 形狀都要正確。
+  if (data.schema < 5) {
+    // 挑戰階梯 6 關 → 12 關（SPEC_M5 §1.5）。順序必須與 menus.js 的 tier 順序一致。
+    const LADDER_V5 = [
+      'lin_college', 'lin_dleague', 'lin',
+      'dirk_rookie', 'dirk',
+      'allen_bucks', 'allen',
+      'klay_rise', 'klay',
+      'lillard',
+      'curry_mvp', 'curry',
+    ];
+    if (!data.progress || typeof data.progress !== 'object') data.progress = emptyProgress();
+    if (!Array.isArray(data.progress.unlocked)) data.progress.unlocked = [];
+    // 找出舊 unlocked 中位於 LADDER_V5 的最高 index，把 index ≤ 它的全部 id 補進
+    // unlocked（去重）——這保證舊資料「已通過」的關卡在新階梯上仍顯示已通過
+    // （passed 判定靠「下一關已解鎖」）。
+    let maxIdx = -1;
+    for (const id of data.progress.unlocked) {
+      const idx = LADDER_V5.indexOf(id);
+      if (idx > maxIdx) maxIdx = idx;
+    }
+    if (maxIdx >= 0) {
+      for (let i = 0; i <= maxIdx; i += 1) {
+        if (!data.progress.unlocked.includes(LADDER_V5[i])) data.progress.unlocked.push(LADDER_V5[i]);
+      }
+    }
+    // 保證 lin_college 一定在 unlocked（新的第 1 關基礎解鎖）。
+    if (!data.progress.unlocked.includes('lin_college')) data.progress.unlocked.push('lin_college');
+    data.settings.cardBg = 'bg1';
+    data.schema = 5;
+  }
+
+  // 保底：不管資料是從哪個版本進來的，progress / settings.inputMode / settings.weeklyGoal / settings.theme / settings.cardBg 形狀都要正確。
   if (!data.progress || typeof data.progress !== 'object') data.progress = emptyProgress();
-  if (!Array.isArray(data.progress.unlocked)) data.progress.unlocked = ['lin'];
-  if (!data.progress.unlocked.includes('lin')) data.progress.unlocked.push('lin');
+  if (!Array.isArray(data.progress.unlocked)) data.progress.unlocked = ['lin_college'];
+  if (!data.progress.unlocked.includes('lin_college')) data.progress.unlocked.push('lin_college');
   if (!data.progress.best || typeof data.progress.best !== 'object') data.progress.best = {};
   if (!Array.isArray(data.progress.badges)) data.progress.badges = [];
   if (!('inputMode' in data.settings)) data.settings.inputMode = 'quick';
   if (!('weeklyGoal' in data.settings)) data.settings.weeklyGoal = null;
   if (!('theme' in data.settings)) data.settings.theme = 'auto';
+  if (!['paper', 'bg1', 'bg2', 'bg3', 'bg4', 'bg5'].includes(data.settings.cardBg)) data.settings.cardBg = 'bg1';
 
   return data;
 }
@@ -202,6 +234,12 @@ export function setWeeklyGoal(state, n) {
 /** 設定深色模式偏好：只收 'auto'|'light'|'dark'，其餘一律視為 'auto'。 */
 export function setTheme(state, mode) {
   state.settings.theme = mode === 'light' || mode === 'dark' ? mode : 'auto';
+  save(state);
+}
+
+/** 設定分享卡預設底圖：只收 'paper'|'bg1'..'bg5'，其餘一律視為 'bg1'（§3 分享卡用）。 */
+export function setCardBg(state, value) {
+  state.settings.cardBg = ['paper', 'bg1', 'bg2', 'bg3', 'bg4', 'bg5'].includes(value) ? value : 'bg1';
   save(state);
 }
 

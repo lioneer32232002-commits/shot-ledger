@@ -6,6 +6,8 @@
 import { getMenu } from './menus.js';
 import { SPOTS } from './court.js';
 import { aggregate, pct, sessionPct, isChallengeEligible, evaluatePassRule } from './stats.js';
+import { setCardBg } from './store.js';
+// 注意：store.js 不 import 本檔，這裡反過來 import 它不會造成循環相依。
 
 const CARD_W = 1080;
 const CARD_H = 1350;
@@ -573,21 +575,35 @@ function formatFilenameDate(iso) {
   return `${d.getFullYear()}-${mm}-${dd}`;
 }
 
+// 底圖選擇列合法值（SPEC M5 §3；與 store.js setCardBg 的白名單一致）。
+const CARD_BG_VALUES = ['paper', 'bg1', 'bg2', 'bg3', 'bg4', 'bg5'];
+
+/** 非法值一律回退 'bg1'，跟 store.js setCardBg 的保底邏輯保持一致。 */
+function normalizeCardBg(value) {
+  return CARD_BG_VALUES.includes(value) ? value : 'bg1';
+}
+
 /**
  * 開啟成績分享卡的全螢幕 sheet：畫卡片預覽＋提供分享／下載／關閉，
- * 另外可選「用自己的照片當背景」重繪成照片版。
+ * 另外可從底圖選擇列切換內建 5 張照片、紙感、或自己的照片。
  * @param {Object} session
- * @param {Object} state 完整 store 狀態
+ * @param {Object} state 完整 store 狀態（呼叫端傳進來的就是完整 store 狀態，
+ *   這裡直接讀 state.settings.cardBg、直接呼叫 setCardBg(state, ...) 持久化）
  */
 export function openShareSheet(session, state) {
   const data = buildCardData(session, state);
   const canvas = document.createElement('canvas');
   const filename = `shotledger-card-${formatFilenameDate(session.startedAt)}.png`;
 
-  // 使用者自訂照片：只存在這個閉包的記憶體裡（Image 物件），不進 localStorage、
-  // 也不經過 store，sheet 關閉就釋放。dataUrl/blob/file 每次重繪都整組重建，
-  // 分享／下載一律拿最新版。
+  // 底圖狀態：selected 是目前選中的 tile 值（'paper'｜'bg1'..'bg5'｜'custom'）；
+  // photoImg 是實際餵給 drawCard 的圖片來源（null＝紙感）。bundled 底圖直接
+  // 複用選擇列 tile 自己的 <img> 元素當畫布來源，不必另開 Image()／Map 快取——
+  // tile 在整個 sheet 開啟期間都留在 DOM 裡，天生就是「切換回來不重載」。
+  // 自訂照片只存在這個閉包的記憶體裡（Image 物件＋blob URL），不進
+  // localStorage、也不經過 store，sheet 關閉或換底圖就釋放。
+  let selected = normalizeCardBg(state.settings && state.settings.cardBg);
   let photoImg = null;
+  let customObjectUrl = null;
   let dataUrl = '';
   let blob = null;
   let file = null;
@@ -596,8 +612,9 @@ export function openShareSheet(session, state) {
   // 「分享」是唯一全寬主鈕，「下載 PNG」降級成次要鈕跟「關閉」一列兩顆半寬；
   // 不支援分享 API（多半是桌面瀏覽器）時，「分享」整顆隱藏，「下載 PNG」升級
   // 成唯一全寬主鈕，「關閉」單獨半寬置中留在原本那一列。
-  // 「用自己的照片當背景」與「移除照片」固定是一列兩顆半寬的次要鈕；未選照片
-  // 時「移除照片」隱藏、照片鈕單顆半寬置中（不拉滿）。
+  // 底圖選擇列（SPEC M5 §3）取代了原本「用自己的照片當背景」／「移除照片」
+  // 兩顆按鈕：一列水平捲動 tile（紙感／bg1~5／自訂照片），tile 本身不是
+  // .btn，不走上面這套主次鈕層級規則，選中態改用 accent ring 標示。
   const backdrop = document.createElement('div');
   backdrop.className = 'sheet-backdrop share-sheet-backdrop';
   backdrop.innerHTML = `
@@ -606,12 +623,32 @@ export function openShareSheet(session, state) {
       <div class="share-sheet__preview">
         <img alt="成績分享卡預覽" />
       </div>
-      <div class="share-sheet__row share-sheet__photo-row" data-row="photo">
-        <label class="btn btn--secondary share-sheet__half share-sheet__photo-btn">
-          用自己的照片當背景
+      <div class="share-sheet__bgrow" data-row="bg">
+        <button type="button" class="share-sheet__bgtile" data-bg="paper" aria-label="紙感底圖">
+          <span class="share-sheet__bgtile-swatch"></span>
+          <span class="share-sheet__bgtile-label">紙感</span>
+        </button>
+        <button type="button" class="share-sheet__bgtile" data-bg="bg1" aria-label="底圖 1">
+          <img src="assets/cardbg/bg1.jpg" alt="" />
+        </button>
+        <button type="button" class="share-sheet__bgtile" data-bg="bg2" aria-label="底圖 2">
+          <img src="assets/cardbg/bg2.jpg" alt="" />
+        </button>
+        <button type="button" class="share-sheet__bgtile" data-bg="bg3" aria-label="底圖 3">
+          <img src="assets/cardbg/bg3.jpg" alt="" />
+        </button>
+        <button type="button" class="share-sheet__bgtile" data-bg="bg4" aria-label="底圖 4">
+          <img src="assets/cardbg/bg4.jpg" alt="" />
+        </button>
+        <button type="button" class="share-sheet__bgtile" data-bg="bg5" aria-label="底圖 5">
+          <img src="assets/cardbg/bg5.jpg" alt="" />
+        </button>
+        <label class="share-sheet__bgtile share-sheet__bgtile--custom" data-bg="custom" aria-label="自己的照片">
+          <span class="share-sheet__bgtile-plus">＋</span>
+          <span class="share-sheet__bgtile-label">自己的照片</span>
+          <img class="share-sheet__bgtile-custom-img" alt="" hidden />
           <input type="file" accept="image/*" class="visually-hidden" data-action="pick-photo" />
         </label>
-        <button class="btn btn--ghost share-sheet__half" data-action="remove-photo" hidden>移除照片</button>
       </div>
       <div class="share-sheet__row share-sheet__primary-row" data-row="primary">
         <button class="btn btn--primary share-sheet__full" data-action="share-card" hidden>分享</button>
@@ -625,18 +662,75 @@ export function openShareSheet(session, state) {
   document.body.appendChild(backdrop);
 
   const previewImg = backdrop.querySelector('.share-sheet__preview img');
+  const bgRow = backdrop.querySelector('[data-row="bg"]');
+  const bgTiles = Array.from(bgRow.querySelectorAll('.share-sheet__bgtile'));
   const photoInput = backdrop.querySelector('[data-action="pick-photo"]');
-  const removePhotoBtn = backdrop.querySelector('[data-action="remove-photo"]');
+  const customImg = backdrop.querySelector('.share-sheet__bgtile-custom-img');
+  const customPlus = backdrop.querySelector('.share-sheet__bgtile-plus');
+  const customLabel = backdrop.querySelector('.share-sheet__bgtile--custom .share-sheet__bgtile-label');
   const shareBtn = backdrop.querySelector('[data-action="share-card"]');
   const downloadBtn = backdrop.querySelector('[data-action="download-card"]');
   const closeBtn = backdrop.querySelector('[data-action="close-share"]');
-  const photoRow = backdrop.querySelector('[data-row="photo"]');
   const primaryRow = backdrop.querySelector('[data-row="primary"]');
   const secondaryRow = backdrop.querySelector('[data-row="secondary"]');
 
-  /** 照片列單顆／兩顆的置中收半寬切換（未選照片時移除鈕隱藏）。 */
-  function syncPhotoRow() {
-    photoRow.classList.toggle('share-sheet__row--single', removePhotoBtn.hidden);
+  /** 選擇列的 accent ring 選中態同步（純視覺，不觸發重繪）。 */
+  function updateBgSelection() {
+    bgTiles.forEach((tile) => {
+      tile.classList.toggle('share-sheet__bgtile--active', tile.dataset.bg === selected);
+    });
+  }
+
+  /** 找出某個內建底圖 tile 裡的 <img> 元素（縮圖跟畫布來源共用同一個節點）。 */
+  function bundledImgEl(name) {
+    const tile = bgRow.querySelector(`.share-sheet__bgtile[data-bg="${name}"]`);
+    return tile ? tile.querySelector('img') : null;
+  }
+
+  /**
+   * 套用內建底圖 name：圖片若已經載完（sheet 開啟時 <img src> 早就在背景載入，
+   * 常見情況一開就緒）就直接重繪；還沒載完就掛 onload 等它載完再重繪——此時
+   * 畫面刻意維持前一個底圖，不強制先退回紙感，避免每次切換 tile 都閃白。
+   * onerror（極端：離線又沒快取）→ 靜默退回紙感，選擇列同步退回紙感 tile。
+   */
+  function applyBundledBg(name) {
+    const img = bundledImgEl(name);
+    if (!img) return;
+    if (img.complete && img.naturalWidth > 0) {
+      photoImg = img;
+      render();
+      return;
+    }
+    img.onload = () => {
+      if (selected !== name) return; // 使用者已經切到別的 tile，這張慢到的圖不該蓋回去
+      photoImg = img;
+      render();
+    };
+    img.onerror = () => {
+      if (selected !== name) return;
+      photoImg = null;
+      selected = 'paper';
+      updateBgSelection();
+      render();
+    };
+  }
+
+  /** 釋放目前自訂照片的 blob URL（換照片或關閉 sheet 時呼叫）。 */
+  function revokeCustomUrl() {
+    if (customObjectUrl) {
+      URL.revokeObjectURL(customObjectUrl);
+      customObjectUrl = null;
+    }
+  }
+
+  /** 選了別的 tile：等同「移除自訂照片」，tile 退回「＋」佔位，不落地本來就沒東西可清。 */
+  function resetCustomTile() {
+    revokeCustomUrl();
+    photoInput.value = '';
+    customImg.hidden = true;
+    customImg.removeAttribute('src');
+    customPlus.hidden = false;
+    if (customLabel) customLabel.hidden = false;
   }
 
   /**
@@ -678,8 +772,29 @@ export function openShareSheet(session, state) {
     refreshOutputs();
   }
 
-  syncPhotoRow();
+  // 開 sheet 即依 settings.cardBg 決定初始底圖：先同步畫一次——selected 是
+  // 'paper' 時這就是最終結果；是 bgN 時 photoImg 還是 null，畫面先呈現紙感版，
+  // 避免等內建圖片載入的白畫面（SPEC M5 §3.2 載入時序）。5 張縮圖的 <img src>
+  // 在上面 innerHTML 賦值當下就已經開始背景載入（等同 sheet 一開就 preload）。
+  updateBgSelection();
   render();
+  if (selected !== 'paper') applyBundledBg(selected);
+
+  bgTiles.forEach((tile) => {
+    if (tile.dataset.bg === 'custom') return; // 自訂 tile 靠下面 file input 的 change 事件切換
+    tile.addEventListener('click', () => {
+      if (selected === 'custom') resetCustomTile();
+      selected = tile.dataset.bg;
+      updateBgSelection();
+      if (selected === 'paper') {
+        photoImg = null;
+        render();
+      } else {
+        applyBundledBg(selected);
+      }
+      setCardBg(state, selected); // 持久化；這條路徑只會是 'paper'/'bgN'，自訂照片不會走到這裡
+    });
+  });
 
   photoInput.addEventListener('change', () => {
     const f = photoInput.files && photoInput.files[0];
@@ -687,24 +802,24 @@ export function openShareSheet(session, state) {
     const objectUrl = URL.createObjectURL(f);
     const img = new Image();
     img.onload = () => {
+      // 圖片已解碼完成，這時才安全換掉上一張自訂照片的 blob URL；
+      // customImg.src 也指向同一個 objectUrl，縮圖跟畫布來源共用同一張圖。
+      revokeCustomUrl();
+      customObjectUrl = objectUrl;
       photoImg = img;
-      removePhotoBtn.hidden = false;
-      syncPhotoRow();
+      customImg.src = objectUrl;
+      customImg.hidden = false;
+      customPlus.hidden = true;
+      if (customLabel) customLabel.hidden = true;
+      selected = 'custom';
+      updateBgSelection();
       render();
-      URL.revokeObjectURL(objectUrl);
+      // 自訂照片刻意不呼叫 setCardBg：只活在這個 sheet 的記憶體裡，不落地。
     };
     img.onerror = () => {
       URL.revokeObjectURL(objectUrl);
     };
     img.src = objectUrl;
-  });
-
-  removePhotoBtn.addEventListener('click', () => {
-    photoImg = null;
-    removePhotoBtn.hidden = true;
-    photoInput.value = '';
-    syncPhotoRow();
-    render();
   });
 
   // shareBtn / downloadBtn 只綁一次：閉包讀的是外層 file / blob 變數，
@@ -730,6 +845,7 @@ export function openShareSheet(session, state) {
   });
 
   function close() {
+    revokeCustomUrl(); // sheet 關閉，自訂照片的 blob URL 沒理由留著
     backdrop.remove();
   }
   closeBtn.addEventListener('click', close);

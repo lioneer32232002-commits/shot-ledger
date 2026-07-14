@@ -7,6 +7,7 @@ import {
   isChallengeEligible, pctGapToShots,
   equivalentTier, lifetimeTotals,
   sessionsInRange, pctSeries, calendarCells, avgRoundCurve, weekAttempts,
+  challengeForecast,
 } from '../js/stats.js';
 
 let passed = 0;
@@ -669,6 +670,126 @@ test('進行中的節（endedAt 為 null）也計入', () => {
 
 test('沒有任何節回傳 {att:0, mk:0}', () => {
   assert.deepEqual(weekAttempts([], now), { att: 0, mk: 0 });
+});
+
+console.log('challengeForecast()');
+
+test('rules 空陣列（或非陣列）回傳 null', () => {
+  assert.equal(challengeForecast([], [], ['2pt']), null);
+  assert.equal(challengeForecast([], null, ['2pt']), null);
+  assert.equal(challengeForecast([], undefined, ['2pt']), null);
+});
+
+test('1. 開局預估：rounds=[]、rule 2pt≥50%、future 4 輪 2pt → plannedAtt 40、needMakes 20、nextRoundNeed 5', () => {
+  const rules = [{ type: '2pt', minPct: 50 }];
+  const futureTypes = ['2pt', '2pt', '2pt', '2pt'];
+  const res = challengeForecast([], rules, futureTypes, 10);
+  assert.equal(res.feasible, true);
+  const d = res.detail[0];
+  assert.deepEqual(
+    { att: d.att, mk: d.mk, futureAtt: d.futureAtt, plannedAtt: d.plannedAtt, needMakes: d.needMakes, remainingNeed: d.remainingNeed, nextRoundNeed: d.nextRoundNeed },
+    { att: 0, mk: 0, futureAtt: 40, plannedAtt: 40, needMakes: 20, remainingNeed: 20, nextRoundNeed: 5 }
+  );
+});
+
+test('2. 進度落後但可追：needMakes 邊界／ceil 進位／nextRoundNeed 平均分攤上限 10', () => {
+  const rounds = [{ type: '2pt', attempts: 20, makes: 1 }];
+  const rules = [{ type: '2pt', minPct: 50 }];
+  const futureTypes = ['2pt', '2pt']; // 剩 2 輪，futureAttempts=10 → futureAtt=20
+  const res = challengeForecast(rounds, rules, futureTypes, 10);
+  const d = res.detail[0];
+  // plannedAtt=40，needMakes=ceil(0.5*40-eps)=20，remainingNeed=20-1=19，19<=20 仍可追
+  assert.equal(d.plannedAtt, 40);
+  assert.equal(d.needMakes, 20);
+  assert.equal(d.remainingNeed, 19);
+  assert.equal(d.feasible, true);
+  assert.equal(res.feasible, true);
+  // ceil(19/2)=10，剛好等於 futureAttempts 的上限，驗證分攤＋上限公式
+  assert.equal(d.nextRoundNeed, 10);
+});
+
+test('3. 不可達標：remainingNeed > futureAtt → feasible false', () => {
+  const rounds = [{ type: '2pt', attempts: 20, makes: 2 }];
+  const rules = [{ type: '2pt', minPct: 70 }];
+  const futureTypes = ['2pt', '2pt']; // futureAtt=20
+  const res = challengeForecast(rounds, rules, futureTypes, 10);
+  const d = res.detail[0];
+  // plannedAtt=40，needMakes=ceil(0.7*40-eps)=28，remainingNeed=28-2=26 > futureAtt(20)
+  assert.equal(d.needMakes, 28);
+  assert.equal(d.remainingNeed, 26);
+  assert.equal(d.feasible, false);
+  assert.equal(res.feasible, false);
+});
+
+test('4. 已達標鎖定：mk ≥ needMakes → remainingNeed 0、nextRoundNeed null', () => {
+  const rounds = [{ type: '2pt', attempts: 20, makes: 15 }];
+  const rules = [{ type: '2pt', minPct: 50 }];
+  const futureTypes = ['2pt'];
+  const res = challengeForecast(rounds, rules, futureTypes, 10);
+  const d = res.detail[0];
+  // plannedAtt=30，needMakes=ceil(0.5*30-eps)=15，mk=15 已達標
+  assert.equal(d.needMakes, 15);
+  assert.equal(d.remainingNeed, 0);
+  assert.equal(d.feasible, true);
+  assert.equal(d.nextRoundNeed, null);
+  assert.equal(res.feasible, true);
+});
+
+test('5. 多條 rule（curry 型）一條可行一條不可行 → 整體 false', () => {
+  const rounds = [
+    { type: '3pt', attempts: 20, makes: 9 },
+    { type: 'deep3', attempts: 10, makes: 0 },
+  ];
+  const rules = [{ type: '3pt', minPct: 45 }, { type: 'deep3', minPct: 80 }];
+  const futureTypes = ['3pt', '3pt', 'deep3'];
+  const res = challengeForecast(rounds, rules, futureTypes, 10);
+
+  const d3pt = res.detail[0];
+  // 3pt：futureCount=2 → futureAtt=20，plannedAtt=40，needMakes=ceil(0.45*40-eps)=18，remainingNeed=9，可行
+  assert.equal(d3pt.futureAtt, 20);
+  assert.equal(d3pt.needMakes, 18);
+  assert.equal(d3pt.remainingNeed, 9);
+  assert.equal(d3pt.feasible, true);
+  // futureTypes[0]==='3pt' → 有 nextRoundNeed
+  assert.equal(d3pt.nextRoundNeed, 5);
+
+  const dDeep3 = res.detail[1];
+  // deep3：futureCount=1 → futureAtt=10，plannedAtt=20，needMakes=ceil(0.8*20-eps)=16，remainingNeed=16 > 10，不可行
+  assert.equal(dDeep3.futureAtt, 10);
+  assert.equal(dDeep3.needMakes, 16);
+  assert.equal(dDeep3.remainingNeed, 16);
+  assert.equal(dDeep3.feasible, false);
+  // futureTypes[0] 是 '3pt' 不是 'deep3'，即使 remainingNeed>0 也不給本輪目標
+  assert.equal(dDeep3.nextRoundNeed, null);
+
+  assert.equal(res.feasible, false);
+});
+
+test('6. epsilon 案例：need 55%、plannedAtt 120 → needMakes 66（不得因浮點變 67）', () => {
+  const rules = [{ type: '2pt', minPct: 55 }];
+  const futureTypes = Array.from({ length: 12 }, () => '2pt'); // 12 輪 × 10 球 = 120
+  const res = challengeForecast([], rules, futureTypes, 10);
+  assert.equal(res.detail[0].plannedAtt, 120);
+  assert.equal(res.detail[0].needMakes, 66);
+});
+
+test('7. futureTypes 空陣列的收尾判定：已達標則 feasible true，未達標則 feasible false', () => {
+  const rulesMet = [{ type: '2pt', minPct: 50 }];
+  const resMet = challengeForecast([{ type: '2pt', attempts: 20, makes: 11 }], rulesMet, [], 10);
+  const dMet = resMet.detail[0];
+  assert.equal(dMet.futureAtt, 0);
+  assert.equal(dMet.plannedAtt, 20);
+  assert.equal(dMet.needMakes, 10);
+  assert.equal(dMet.remainingNeed, 0);
+  assert.equal(dMet.feasible, true);
+  assert.equal(dMet.nextRoundNeed, null);
+  assert.equal(resMet.feasible, true);
+
+  const resNotMet = challengeForecast([{ type: '2pt', attempts: 20, makes: 5 }], rulesMet, [], 10);
+  const dNotMet = resNotMet.detail[0];
+  assert.equal(dNotMet.remainingNeed, 5);
+  assert.equal(dNotMet.feasible, false); // 剩 0 球額度但還差 5 顆，已無法達標
+  assert.equal(resNotMet.feasible, false);
 });
 
 console.log(`\n${passed} 個測試通過`);

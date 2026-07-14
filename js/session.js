@@ -9,7 +9,7 @@ import {
   aggregate, pct, recentTypeAvg, todaySummary,
   roundCurve, earlyLateSplit, evaluatePassRule, sessionPct,
   isChallengeEligible, pctGapToShots, typeAvgAllTime, computeBadges,
-  equivalentTier, lifetimeTotals, weekAttempts,
+  equivalentTier, lifetimeTotals, weekAttempts, challengeForecast,
 } from './stats.js';
 import { openShareSheet } from './sharecard.js';
 
@@ -46,6 +46,7 @@ let inputMode = 'quick'; // 'quick' | 'seq'，跨節記住（存在 settings）
 let pendingSeq = []; // 逐球模式下，目前這輪的 boolean 陣列
 let variantSheetMenuId = null; // 首頁：正在選變體（簡易/完整）的菜單 id
 let menuComplete = false; // 菜單模式下，seqList 所有輪次已記錄完但尚未按「結束並結算」（§4）
+let forecastBannerDismissed = false; // M5 §2：不可達標橫幅一旦收合，本節不再自動彈出（rule bar 小字仍持續顯示）
 let justFinishedResult = null; // 剛結束本節時算出的挑戰結果（給結束頁做慶祝動畫用）
 let pendingRetry = null; // 從其他分頁按「再挑戰一次」時，記著要開的菜單，等 train 分頁掛載時執行
 
@@ -213,14 +214,17 @@ function basketballStripesSvg() {
   </svg>`;
 }
 
-function renderPassRuleBars(detail) {
+// forecastDetail（可選，M5 §2）：與 detail 同索引對齊（兩者都是同一份 passRule
+// 依序 map 出來的），只有「挑戰進度（即時）」會傳，hero 卡的歷史對照不傳。
+function renderPassRuleBars(detail, forecastDetail) {
   if (!detail || detail.length === 0) return '';
   return `
     <div class="rule-bars">
-      ${detail.map((d) => {
+      ${detail.map((d, i) => {
         const p = d.pct === null ? 0 : Math.min(100, d.pct);
         const met = d.pct !== null && d.pct >= d.need;
         const needPos = Math.min(100, d.need);
+        const fd = forecastDetail ? forecastDetail[i] : null;
         return `
           <div class="rule-bar ${met ? 'is-met' : ''}">
             <div class="rule-bar__label">
@@ -231,11 +235,24 @@ function renderPassRuleBars(detail) {
               <div class="rule-bar__fill" style="width:${p}%"></div>
               <div class="rule-bar__need" style="left:${needPos}%"></div>
             </div>
+            ${renderForecastLineHtml(fd)}
           </div>
         `;
       }).join('')}
     </div>
   `;
+}
+
+/** rule bar 下的預估小字（M5 §2）：已達標／不可行／還需 X 球（剩 Y 球額度）。 */
+function renderForecastLineHtml(fd) {
+  if (!fd) return '';
+  if (fd.remainingNeed === 0) {
+    return `<p class="rule-bar__forecast is-success">已達標 ✓</p>`;
+  }
+  if (!fd.feasible) {
+    return `<p class="rule-bar__forecast is-danger">已無法達標</p>`;
+  }
+  return `<p class="rule-bar__forecast">還需 ${fd.remainingNeed} 球（剩 ${fd.futureAtt} 球額度）</p>`;
 }
 
 // 球員生涯數據面板「夜幕數據面板」（數據與查證紀錄在 menus.js 的 career 欄位，
@@ -260,7 +277,7 @@ function renderCareerHtml(career, passRule) {
   return `
     <div class="career-panel">
       <div class="career-panel__caption">
-        <span class="nowrap">NBA ${career.years}</span>
+        <span class="nowrap">${career.label || ('NBA ' + career.years)}</span>
         <span class="nowrap">生涯數據</span>
       </div>
       <div class="career-panel__stats">${statsHtml}</div>
@@ -287,7 +304,7 @@ function renderHeroCard(menu, isPassed) {
     <section class="hero-card">
       <span class="hero-card__bignum" aria-hidden="true">${bignum}</span>
       <div class="hero-card__top">
-        <span class="hero-card__tier">第 ${menu.tier} 關 / 6</span>
+        <span class="hero-card__tier">第 ${menu.tier} 關 / ${ladderMenus().length}</span>
         ${isPassed ? '<span class="hero-card__passed">✓ 已通過</span>' : ''}
       </div>
       <h2 class="hero-card__name">${menu.name}</h2>
@@ -509,6 +526,7 @@ function startSession(modeId, variant) {
   confirmDiscard = false;
   attemptsStepperOpen = false;
   menuComplete = false;
+  forecastBannerDismissed = false;
   inputMode = state.settings.inputMode || 'quick';
   pendingSeq = makeEmptySeq(attemptsForRound);
 
@@ -577,6 +595,7 @@ function resumeSession() {
   editingSeq = null;
   confirmDiscard = false;
   menuComplete = false;
+  forecastBannerDismissed = false;
   inputMode = state.settings.inputMode || 'quick';
   pendingSeq = makeEmptySeq(attemptsForRound);
 
@@ -654,11 +673,41 @@ function renderActive() {
     </div>
   `;
 
+  // M5 §2：達標預估——只在「挑戰菜單＋完整版」算，跟 liveProgressHtml 同條件；
+  // menuComplete（完成面板取代輸入區）時不算，未來輪次已無意義。
+  const showForecast = menu.challenge && activeSession.variant === 'full' && !menuComplete;
+  const futureTypes = showForecast && seqList ? seqList.slice(doneCount).map((id) => getSpot(id).type) : [];
+  const forecast = showForecast ? challengeForecast(activeSession.rounds, menu.passRule, futureTypes, 10) : null;
+
+  // 頭部 chip：目前輪球種若對應到某條 rule 且該輪還有明確門檻，取多條 rule 的最大值。
+  const relevantNeeds = forecast && pendingType
+    ? forecast.detail.filter((d) => d.type === pendingType && d.nextRoundNeed !== null).map((d) => d.nextRoundNeed)
+    : [];
+  const headlineChipHtml = relevantNeeds.length
+    ? `<span class="round-input__forecast-chip">本輪至少 ${Math.max(...relevantNeeds)} 球</span>`
+    : '';
+
+  // 整體不可達標橫幅：收合後（forecastBannerDismissed）本節不再自動彈出，但 rule bar 的
+  // 「已無法達標」小字仍持續顯示（見 renderForecastLineHtml）。
+  const forecastBannerHtml = forecast && !forecast.feasible && !forecastBannerDismissed
+    ? `
+      <section class="forecast-banner">
+        <p class="forecast-banner__title">依剩餘輪次估算，這次挑戰已無法達標</p>
+        <p class="forecast-banner__desc">紀錄都會保留、照樣計入統計——可以把剩下的輪次投完，或現在結束</p>
+        <div class="forecast-banner__actions">
+          <button class="btn btn--secondary" data-action="dismiss-forecast-banner">繼續投完</button>
+          <button class="btn btn--primary" data-action="forecast-finish-early">提前結束並結算</button>
+        </div>
+      </section>
+    `
+    : '';
+
   const liveProgressHtml = menu.challenge && activeSession.variant === 'full'
     ? `<section class="live-progress">
         <h2 class="section-title">挑戰進度（即時）</h2>
-        ${renderPassRuleBars(evaluatePassRule(activeSession, menu.passRule).detail)}
-      </section>`
+        ${renderPassRuleBars(evaluatePassRule(activeSession, menu.passRule).detail, forecast ? forecast.detail : null)}
+      </section>
+      ${forecastBannerHtml}`
     : '';
 
   const modeHintText = inputMode === 'seq'
@@ -699,6 +748,7 @@ function renderActive() {
           <div class="round-input__headline">
             <span class="round-input__round">${roundLabel}</span>
             <span class="round-input__spot">${currentLabel}</span>
+            ${headlineChipHtml}
           </div>
           <button class="chip chip--attempts" data-action="open-attempts">實投 ${attemptsForRound} 球</button>
         </div>
@@ -963,6 +1013,15 @@ function onActiveClick(e) {
     finishSession();
     return;
   }
+  if (action === 'dismiss-forecast-banner') {
+    forecastBannerDismissed = true;
+    renderActive();
+    return;
+  }
+  if (action === 'forecast-finish-early') {
+    finishSession();
+    return;
+  }
 }
 
 function completeRound(makes, seq) {
@@ -1070,7 +1129,9 @@ function computeAndApplyChallengeResult(session) {
       if (next && store.unlockMenu(state, next)) {
         unlockedMenuId = next;
       }
-      if (menu.id === 'curry' && store.addBadge(state, 'ladder_complete')) {
+      const ladder = ladderMenus();
+      const lastMenuId = ladder.length ? ladder[ladder.length - 1].id : null;
+      if (menu.id === lastMenuId && store.addBadge(state, 'ladder_complete')) {
         badgeEarned = 'ladder_complete';
       }
     }
