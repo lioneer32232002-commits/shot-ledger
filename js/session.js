@@ -497,7 +497,15 @@ function renderHome() {
 
   root.innerHTML = `
     <div class="page page--home">
-      <header class="page-header"><h1>練球</h1></header>
+      <header class="page-header page-header--train">
+        <h1>練球</h1>
+        <a class="home-link" href="#/home">
+          <svg class="home-link__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5h-5v5H5a1 1 0 0 1-1-1v-8.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+          </svg>
+          <span>Shot Ledger</span>
+        </a>
+      </header>
       ${heroHtml}
       ${quickRestartHtml}
       ${ladderHtml}

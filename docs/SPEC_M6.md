@@ -131,3 +131,22 @@ Unsplash`），`--text-xs`、`--color-text-faint`。
 - 不做橫向滑卡 onboarding、不做進度圓點。
 - 不在首頁列 12 關（`#/train` 已經有階梯主視覺）。
 - 不做首頁的 i18n／不改 OG 圖。
+
+---
+
+## M6.1（2026-07-14，使用者實機回饋）
+
+1. **「已經在用的人看不到首頁」**——祖父條款把老用戶的 `homeSeen` 設成 true，
+   裸網址就直接進 `#/train` 了（設計如此，但沒有明顯的回去入口）。
+   決議：**維持跳過**（每天練球不該多按一步），但**練球頁標題列右側加一個低調的
+   `⌂ Shot Ledger` 連結**（`.home-link` → `#/home`），已在使用的人隨時回得去。
+   設定頁的「重看首頁介紹」保留。
+2. **OG 圖換成 patrick-fore-DVpn-Ot0fV4（夕陽逆光穿框）**，1200×630 q82（27KB），
+   存成 `assets/og-v2.jpg`——**必須換檔名**：FB／LINE／X 的爬蟲依 og:image 的
+   「網址」快取，同名覆蓋在已分享過的連結上會繼續吃到舊圖。同時補上
+   `og:image:width/height/alt`（爬蟲不必下載就知道尺寸，卡片較不會裂）。
+   舊的 `assets/og.jpg` 留在 repo（不再被引用）。
+3. **OG 只有一組、綁在 `index.html`**：`#/home`、`#/train` 都是同一份 HTML 的 hash
+   路由，**hash 不會送到伺服器**，爬蟲看到的永遠是同一張卡。分享
+   `https://shot-ledger.pages.dev/` 或 `.../#/home` 出來的預覽完全一樣。
+4. SW `CACHE_NAME` v10 → **v11**。
