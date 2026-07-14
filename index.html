@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Shot Ledger｜投籃紀錄</title>
 <meta name="description" content="手機優先的投籃訓練紀錄工具：選模式、投一輪記一次、看熱區與命中率。" />
 <meta name="theme-color" content="#FAF9F7" />
@@ -16,7 +16,13 @@
 <meta property="og:image:alt" content="夕陽逆光下，籃球正穿過籃框" />
 <meta property="og:url" content="https://shot-ledger.pages.dev/" />
 <meta property="og:type" content="website" />
+<meta property="og:site_name" content="Shot Ledger" />
+<meta property="og:locale" content="zh_TW" />
 <meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Shot Ledger — 投籃訓練紀錄" />
+<meta name="twitter:description" content="選一份菜單、投一輪、回來點一下。投完就看得到熱區與命中率。免安裝、免帳號。" />
+<meta name="twitter:image" content="https://shot-ledger.pages.dev/assets/og-v2.jpg" />
+<link rel="canonical" href="https://shot-ledger.pages.dev/" />
 <link
   rel="icon"
   href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='t' x1='10' y1='52' x2='52' y2='38' gradientUnits='userSpaceOnUse'%3E%3Cstop offset='0' stop-color='%23FAF9F7' stop-opacity='.35'/%3E%3Cstop offset='1' stop-color='%23FAF9F7'/%3E%3C/linearGradient%3E%3CradialGradient id='g' cx='52' cy='38' r='14' gradientUnits='userSpaceOnUse'%3E%3Cstop offset='.45' stop-color='%23E8590C' stop-opacity='.5'/%3E%3Cstop offset='1' stop-color='%23E8590C' stop-opacity='0'/%3E%3C/radialGradient%3E%3C/defs%3E%3Crect x='2' y='2' width='60' height='60' rx='14' fill='%231F3A5F'/%3E%3Cpath d='M10 52Q31.6 0.7 54.4 36.7L49.6 39.3Q32.4 3.3 10 52Z' fill='url(%23t)'/%3E%3Ccircle cx='52' cy='38' r='14' fill='url(%23g)'/%3E%3Ccircle cx='52' cy='38' r='6.5' fill='%23E8590C'/%3E%3C/svg%3E"
@@ -25,10 +31,49 @@
 <link rel="apple-touch-icon" href="assets/icon-192.png" />
 <link rel="stylesheet" href="css/tokens.css" />
 <link rel="stylesheet" href="css/app.css" />
+<!-- 結構化資料寫死在初始 HTML（不用 JS 注入）：爬蟲要在第一次拿到的 HTML 裡就看到，
+     不能等 app.js 執行完才補上。 -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "Shot Ledger",
+  "alternateName": "投籃訓練紀錄",
+  "url": "https://shot-ledger.pages.dev/",
+  "description": "手機優先的投籃訓練紀錄工具：選模式、投一輪記一次、看熱區與命中率。免安裝、免帳號，資料存在裝置本機。",
+  "applicationCategory": "SportsApplication",
+  "operatingSystem": "Any",
+  "browserRequirements": "需支援 JavaScript 的現代瀏覽器",
+  "inLanguage": "zh-Hant",
+  "isAccessibleForFree": true,
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "TWD" },
+  "featureList": [
+    "12 關生涯挑戰階梯",
+    "自由練習與綜合巡迴模式",
+    "球場熱區命中率圖",
+    "離線可用（PWA）"
+  ]
+}
+</script>
 </head>
 <body>
 <div class="app-shell">
-  <main id="view" class="app-main" role="main"></main>
+  <main id="view" class="app-main" role="main">
+    <!-- 給不執行 JS 的爬蟲／使用者看的靜態摘要。app.js 掛載頁面時會整個覆寫 #view 的
+         innerHTML，所以這段不用另外清除，JS 一跑起來就自然被換掉。 -->
+    <noscript>
+      <div style="padding: 24px; max-width: 640px; margin: 0 auto;">
+        <h1>Shot Ledger — 投籃訓練紀錄</h1>
+        <p>手機優先的投籃訓練紀錄工具：選一份菜單、投一輪、回來點一下。不用邊投邊打字，投完就看得到熱區與命中率。免安裝、免帳號，資料存在裝置本機。</p>
+        <p>三種練習模式：</p>
+        <ul>
+          <li><strong>挑戰階梯</strong>：12 關生涯之路，一關一關解鎖，菜單取材自公開報導的訓練風格。</li>
+          <li><strong>自由練習</strong>：想投哪就投哪，不指定點位。</li>
+          <li><strong>綜合巡迴</strong>：全場繞一圈，各距離都練到。</li>
+        </ul>
+      </div>
+    </noscript>
+  </main>
 
   <nav class="tab-bar" id="tab-bar" aria-label="主要頁籤">
     <a href="#/train" class="tab-item" data-tab="train">

@@ -113,9 +113,12 @@ function renderSectionHtml(s, i) {
 }
 
 function renderWordmarkHtml() {
+  // SPEC_M6.4：字標升為 h1——這是全站唯一沒有 h1 的主要畫面，而它正是裸網址
+  // 首次落地的那一頁。css/app.css 的「h1, h2, h3, p { margin: 0; }」已經把兩者的
+  // margin 都清成 0，所以從 <p> 換成 <h1> 不需要額外補 margin，視覺不受影響。
   return `
     <div class="home-wordmark">
-      <p class="home-wordmark__name">Shot Ledger</p>
+      <h1 class="home-wordmark__name">Shot Ledger</h1>
       <p class="home-wordmark__sub">投籃訓練紀錄本</p>
     </div>
   `;
