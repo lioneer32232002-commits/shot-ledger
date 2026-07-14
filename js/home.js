@@ -36,9 +36,9 @@ const SECTIONS = [
 ];
 
 const ENTRIES = [
-  { menu: null, title: '挑戰階梯', sub: '12 關生涯之路，一關一關解鎖' },
-  { menu: 'free', title: '自由練習', sub: '想投哪就投哪，不指定點位' },
-  { menu: 'world', title: '綜合巡迴', sub: '全場繞一圈，各距離都練到' },
+  { menu: null, n: '01', title: '挑戰階梯', sub: '12 關生涯之路，一關一關解鎖', tag: 'LADDER' },
+  { menu: 'free', n: '02', title: '自由練習', sub: '想投哪就投哪，不指定點位', tag: 'FREE' },
+  { menu: 'world', n: '03', title: '綜合巡迴', sub: '全場繞一圈，各距離都練到', tag: 'TOUR' },
 ];
 
 let root = null;
@@ -121,17 +121,18 @@ function renderWordmarkHtml() {
   `;
 }
 
+// SPEC_M6.3：入口從卡片改成目錄列——序號延續前三屏 01/02/03 的語彙，
+// 讓第四屏跟前面連成同一本紀錄本，而不是另外長出一組通用 App 卡片。
 function renderEntriesHtml() {
   const cards = ENTRIES.map(
     (e) => `
       <button class="home-entry" data-menu="${e.menu === null ? '' : e.menu}">
+        <span class="home-entry__num">${e.n}</span>
         <span class="home-entry__text">
           <span class="home-entry__title">${e.title}</span>
           <span class="home-entry__sub">${e.sub}</span>
         </span>
-        <svg class="home-entry__arrow" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M5 12h13M12 5.5 18.5 12 12 18.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
+        <span class="home-entry__tag" aria-hidden="true">${e.tag}</span>
       </button>
     `
   ).join('');
