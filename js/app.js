@@ -15,6 +15,10 @@ import { pageBannerHtml } from './pagebanner.js';
 const VALID_TABS = ['train', 'stats', 'history', 'settings'];
 const HOME_ROUTE = 'home'; // 首頁：有自己的路由但不佔 tab bar 格子（SPEC_M6 §1）
 
+// 聯絡版主：純 mailto，不接後端也不收使用者資料。主旨先填好，回信時比較好歸類。
+const CONTACT_EMAIL = 'wizard32232002@gmail.com';
+const CONTACT_MAILTO = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent('Shot Ledger 意見回饋')}`;
+
 // ---------------------------------------------------------------------------
 // 深色模式（schema v4 settings.theme：'auto'|'light'|'dark'）
 // ---------------------------------------------------------------------------
@@ -231,7 +235,9 @@ function renderSettings() {
         <h2 class="settings-card__title">關於本站</h2>
         <div class="settings-actions">
           <button class="btn btn--secondary" data-action="show-home">重看首頁介紹</button>
+          <a class="btn btn--secondary" href="${CONTACT_MAILTO}">聯絡版主</a>
         </div>
+        <p class="settings-card__row">回報問題或許願功能，會直接開啟你的信箱 App 寄到 <span class="nowrap">${CONTACT_EMAIL}</span>。</p>
       </section>
 
       <section class="settings-card">
