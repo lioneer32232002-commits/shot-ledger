@@ -111,7 +111,7 @@ export const MENUS = [
     },
   },
   {
-    id: 'allen_bucks', name: 'Ray Allen 雄鹿時期', short: 'Allen 雄鹿', player: 'Ray Allen', playerStatus: 'retired', tier: 6,
+    id: 'allen_bucks', name: 'Ray Allen 公鹿時期', short: 'Allen 公鹿', player: 'Ray Allen', playerStatus: 'retired', tier: 6,
     focus: '底角專攻：兩側底角雙連發，練出底角殺手本能', inspired: true, challenge: true,
     passRule: [{ type: '3pt', minPct: 32 }],
     passDesc: '3 分 ≥32%',
@@ -120,7 +120,7 @@ export const MENUS = [
     est: { easy: 30, full: 60 },
     career: { label: 'NBA 公鹿時期 1996–2003', years: '1996–2003', fg: 45.0, tp: 40.6, ft: 87.9, tpm: 1051, fact: '2001 年三分大賽決賽連中十球逆轉封王' },
     basis: {
-      text: '同一定點儀式的低強度入門改編：取材自 Allen 著名的賽前儀式（開賽前約 3 小時到場、五點依固定順序投籃），這裡對應雄鹿時期三分尚在開荒、搭中距補強的階段',
+      text: '同一定點儀式的低強度入門改編：取材自 Allen 著名的賽前儀式（開賽前約 3 小時到場、五點依固定順序投籃），這裡對應公鹿時期三分尚在開荒、搭中距補強的階段',
       source: 'Boston Globe 2008', url: 'http://archive.boston.com/sports/articles/2008/04/20/routine_excellence_is_allens_secret/',
     },
   },
