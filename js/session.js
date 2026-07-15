@@ -1284,9 +1284,11 @@ function renderUnlockCelebration(nextMenu, badgeEarned) {
     <div class="celebration" role="status" aria-live="polite">
       <div class="confetti" aria-hidden="true">${pieces}</div>
       <div class="celebration__card">
+        <button type="button" class="celebration__close" data-action="dismiss-celebration" aria-label="關閉">✕</button>
         <p class="celebration__title">解鎖成功！</p>
         ${nextMenu ? `<p class="celebration__next">已解鎖：${nextMenu.name}</p>` : ''}
         ${badgeEarned ? `<p class="celebration__badge">獲得徽章：${BADGE_LABEL[badgeEarned] || badgeEarned}</p>` : ''}
+        <button type="button" class="btn btn--primary celebration__view" data-action="dismiss-celebration">查看本次數據</button>
       </div>
     </div>
   `;
@@ -1467,5 +1469,19 @@ export function renderSessionSummary(container, session, allSessions, opts = {})
     retryBtn.addEventListener('click', () => {
       requestRetry(retryBtn.dataset.menu, retryBtn.dataset.variant);
     });
+  }
+
+  const celebration = container.querySelector('.celebration');
+  if (celebration) {
+    const dismiss = () => celebration.remove();
+    // 點卡片內的關閉／查看數據按鈕，或點卡片外的背景遮罩，都能關掉恭喜視窗
+    celebration.querySelectorAll('[data-action="dismiss-celebration"]').forEach((btn) => {
+      btn.addEventListener('click', dismiss);
+    });
+    celebration.addEventListener('click', (e) => {
+      if (e.target === celebration) dismiss();
+    });
+    // 自動收掉，避免使用者以為卡住（花瓣停、視窗淡出）
+    setTimeout(dismiss, 6000);
   }
 }
