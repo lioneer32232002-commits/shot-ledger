@@ -66,7 +66,8 @@ function renderList() {
           <span class="history-row__time">${formatDateTime(s.startedAt).split(' ')[1]}</span>
         </div>
         <div class="history-row__main">
-          <span class="history-row__mode">${menu ? menu.name : s.mode}${vLabel ? `<span class="variant-tag variant-tag--sm">${vLabel}</span>` : ''}</span>
+          <span class="history-row__mode">${menu ? menu.name : s.mode}</span>
+          ${vLabel ? `<span class="variant-tag variant-tag--sm variant-tag--row">${vLabel}</span>` : ''}
           <span class="history-row__score"><span class="nowrap">${agg.total.mk}/${agg.total.att} 投中</span> ・ <span class="nowrap">${p === null ? '—' : p + '%'}</span></span>
         </div>
         <div class="history-row__duration">${formatDuration(s.startedAt, s.endedAt)}</div>

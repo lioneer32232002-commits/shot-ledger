@@ -1579,6 +1579,12 @@ a {
   margin-left: var(--space-1);
 }
 
+/* 獨立成一行的標籤（紀錄列表：固定顯示在模式名稱下方那一行） */
+.variant-tag--row {
+  align-self: flex-start;
+  margin-left: 0;
+}
+
 .summary__tags {
   display: flex;
   flex-wrap: wrap;
