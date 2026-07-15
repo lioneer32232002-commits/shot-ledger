@@ -2571,7 +2571,7 @@ a {
   height: 14px;
   opacity: 0.9;
   border-radius: 2px;
-  animation: confetti-fall 2.2s linear infinite;
+  animation: confetti-fall 2.2s linear 3 forwards;
 }
 
 @keyframes confetti-fall {
@@ -2609,6 +2609,34 @@ a {
   margin-top: var(--space-2);
   font-size: var(--text-sm);
   color: var(--color-text-muted);
+}
+
+.celebration__close {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: var(--text-lg);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.celebration__close:hover {
+  background: var(--color-surface-alt, rgba(0, 0, 0, 0.06));
+  color: var(--color-text);
+}
+
+.celebration__view {
+  margin-top: var(--space-4);
+  width: 100%;
 }
 
 /* ---------------------------------------------------------------------- */
