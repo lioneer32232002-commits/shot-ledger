@@ -3,7 +3,7 @@
 
 import * as store from './store.js';
 import { getMenu } from './menus.js';
-import { pct, aggregate } from './stats.js';
+import { pct, aggregate, isChallengeEligible, evaluatePassRule } from './stats.js';
 import { renderSessionSummary, formatDateTime, formatDuration } from './session.js';
 import { pageBannerHtml } from './pagebanner.js';
 
@@ -59,6 +59,15 @@ function renderList() {
     const agg = aggregate(s.rounds);
     const p = pct(agg.total.mk, agg.total.att);
     const vLabel = s.variant === 'full' ? '完整' : s.variant === 'easy' ? '簡易' : '';
+    // 挑戰達標標記：只對「挑戰菜單＋完整版」判定（照 sharecard.js 的模式）；
+    // 自由練習、綜合巡迴、簡易版不顯示（簡易版本來就不能解鎖，顯示未達標會誤導）。
+    let passTagHtml = '';
+    if (menu && menu.challenge && s.variant === 'full') {
+      const achieved = isChallengeEligible(s) && evaluatePassRule(s, menu.passRule).pass;
+      passTagHtml = achieved
+        ? '<span class="variant-tag variant-tag--sm variant-tag--pass">達標 ✓</span>'
+        : '<span class="variant-tag variant-tag--sm variant-tag--miss">未達標</span>';
+    }
     return `
       <li class="history-row" data-session="${s.id}">
         <div class="history-row__date">
@@ -67,7 +76,7 @@ function renderList() {
         </div>
         <div class="history-row__main">
           <span class="history-row__mode">${menu ? menu.name : s.mode}</span>
-          ${vLabel ? `<span class="variant-tag variant-tag--sm variant-tag--row">${vLabel}</span>` : ''}
+          ${vLabel || passTagHtml ? `<span class="history-row__tags">${vLabel ? `<span class="variant-tag variant-tag--sm">${vLabel}</span>` : ''}${passTagHtml}</span>` : ''}
           <span class="history-row__score"><span class="nowrap">${agg.total.mk}/${agg.total.att} 投中</span> ・ <span class="nowrap">${p === null ? '—' : p + '%'}</span></span>
         </div>
         <div class="history-row__duration">${formatDuration(s.startedAt, s.endedAt)}</div>

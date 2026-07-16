@@ -1579,10 +1579,27 @@ a {
   margin-left: var(--space-1);
 }
 
-/* 獨立成一行的標籤（紀錄列表：固定顯示在模式名稱下方那一行） */
-.variant-tag--row {
-  align-self: flex-start;
+/* 紀錄列表：標籤獨立一行（固定顯示在模式名稱下方、命中率上方），
+   一行內可並排多顆 tag（完整＋達標）。 */
+.history-row__tags {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.history-row__tags .variant-tag {
   margin-left: 0;
+}
+
+/* 紀錄列表：挑戰達標標記（只出現在挑戰菜單的完整版紀錄） */
+.variant-tag--pass {
+  background: var(--color-success-tint);
+  color: var(--color-success);
+}
+
+.variant-tag--miss {
+  background: var(--color-surface-sunken);
+  color: var(--color-text-muted);
 }
 
 .summary__tags {
@@ -1997,6 +2014,7 @@ a {
 
 .ladder-scroll {
   display: flex;
+  align-items: stretch;
   gap: var(--space-2);
   overflow-x: auto;
   padding-bottom: var(--space-1);
@@ -2005,15 +2023,15 @@ a {
 
 .ladder-tile {
   flex: 0 0 auto;
-  width: 92px;
-  min-height: 100px;
+  width: 80px;
+  min-height: 86px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: var(--space-1);
   text-align: center;
-  padding: var(--space-3) var(--space-2);
+  padding: var(--space-2);
   border-radius: var(--radius-md);
   background: var(--color-surface);
   border: 1.5px solid var(--color-border);
@@ -2027,7 +2045,7 @@ a {
 
 .ladder-tile.is-current {
   border-color: var(--color-accent);
-  box-shadow: 0 0 0 2px var(--color-accent-tint);
+  box-shadow: 0 0 0 2px var(--color-accent-tint), var(--shadow-sm);
 }
 
 .ladder-tile.is-passed {
@@ -2041,13 +2059,23 @@ a {
 }
 
 .ladder-tile__tier {
-  font-size: 11px;
+  font-size: 22px;
   font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
   color: var(--color-text-faint);
 }
 
+.ladder-tile.is-current .ladder-tile__tier {
+  color: var(--color-accent);
+}
+
+.ladder-tile.is-passed .ladder-tile__tier {
+  color: var(--color-success);
+}
+
 .ladder-tile__name {
-  font-size: var(--text-xs);
+  font-size: 13px;
   font-weight: 700;
   line-height: var(--leading-tight);
 }
@@ -2068,8 +2096,8 @@ a {
 }
 
 .lock-icon {
-  width: 16px;
-  height: 16px;
+  width: 12px;
+  height: 12px;
   color: var(--color-text-faint);
 }
 
@@ -2078,7 +2106,7 @@ a {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.3;
   color: var(--color-text-faint);
 }
