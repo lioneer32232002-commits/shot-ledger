@@ -6,7 +6,7 @@ import { isChallengeEligible, evaluatePassRule, sessionPct, aggregate, computeBa
 // menus.js / stats.js 都是無相依的純資料／純函式模組，這裡 import 不會形成循環。
 
 const KEY = 'shotledger_v1';
-const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 9;
 
 function emptyProgress() {
   return { unlocked: ['lin_college'], best: {}, badges: [] };
@@ -154,6 +154,21 @@ function migrate(data) {
       if (!data.progress.unlocked.includes(ladder[i].id)) data.progress.unlocked.push(ladder[i].id);
     }
     data.schema = 8;
+  }
+
+  if (data.schema < 9) {
+    // 第 11 關「Jeremy Lin 台灣時期」插入 Lillard（10）與 Curry MVP（11→12）之間。
+    // 已解鎖原 tier 11（curry_mvp）的人早已通過 Lillard，不能被新插入的關卡卡住
+    // → 補解鎖 lin_taiwan。已拿 ladder_complete 徽章者保留徽章（只加不減，
+    // 不因第 13 關出現而收回）——badges 這裡完全不動即是保留。
+    if (
+      Array.isArray(data.progress?.unlocked) &&
+      data.progress.unlocked.includes('curry_mvp') &&
+      !data.progress.unlocked.includes('lin_taiwan')
+    ) {
+      data.progress.unlocked.push('lin_taiwan');
+    }
+    data.schema = 9;
   }
 
   // 保底：不管資料是從哪個版本進來的，progress / settings.inputMode / settings.weeklyGoal / settings.theme / settings.cardBg / settings.homeSeen 形狀都要正確。

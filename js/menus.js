@@ -38,15 +38,18 @@
 //   espn.com/nba/player/stats/_/id/3975/stephen-curry ＋
 //   statmuse.com/nba/ask?q=steph+curry+stats+2015-2016+season
 //   fact 來源：si.com/nba/2016/05/10/stephen-curry-unanimous-mvp-golden-state-warriors
+// - lin_taiwan（國王 2024–25 TPBL）：雙來源＝TPBL 官網球員頁＋2024–25 新北國王
+//   賽季維基，2026-07-16 交叉核對一致。注意：2024 PLG FMVP 是李愷諺、非林書豪，
+//   文案不得寫 Lin 拿過 PLG FMVP（他的 MVP＋FMVP 雙料是 2024-25 TPBL 元年）。
 
 export const MENUS = [
   {
     id: 'lin_college', name: 'Jeremy Lin 哈佛時期', short: 'Lin 哈佛', player: 'Jeremy Lin', playerStatus: 'retired', tier: 1,
-    focus: '課表式基本功：禁區雙連發起手，罰球穿插在課表中段', inspired: true, challenge: true,
+    focus: '新手關——課表式基本功：禁區雙連發起手，上籃收操', inspired: true, challenge: true,
     passRule: [{ type: '2pt', minPct: 45 }],
     passDesc: '2 分 ≥45%',
-    full: ['paint', 'paint', 'mid_lw', 'mid_top', 'ft', 'paint', 'mid_rw', 'mid_top', 'ft', 'paint', 'mid_lw', 'ft'],
-    est: { full: 60 },
+    full: ['paint', 'paint', 'mid_top', 'ft', 'layup_l', 'ft'],
+    est: { full: 30 },
     career: { label: '哈佛 2006–10', years: '2006–10', fg: 48.1, tp: 33.3, ft: 73.3, tpm: 108, fact: '大四獲教練團一致票選 All-Ivy 第一隊的哈佛控衛' },
     basis: {
       text: '取材自 Lin 哈佛時期的禁區＋近距中距＋罰球攻擊組合，靈感改編自其日後與投籃教練 Doc Scheppler 重造跳投前的基本功階段，非本人菜單',
@@ -58,7 +61,7 @@ export const MENUS = [
     focus: '左右翼折返：中距兩翼來回穿梭，練體能也練穩定', inspired: true, challenge: true,
     passRule: [{ type: '2pt', minPct: 48 }, { type: 'ft', minPct: 65 }],
     passDesc: '2 分 ≥48% 且罰球 ≥65%',
-    full: ['mid_lw', 'mid_rw', 'mid_lw', 'mid_rw', 'ft', 'paint', 'mid_rw', 'mid_lw', 'mid_rw', 'mid_lw', 'ft', 'ft'],
+    full: ['mid_lw', 'mid_rw', 'mid_lw', 'mid_rw', 'ft', 'layup_l', 'mid_rw', 'mid_lw', 'mid_rw', 'layup_r', 'ft', 'ft'],
     est: { full: 60 },
     career: { label: '發展聯盟 2010–11', years: '2010–11', fg: 47.7, tp: 38.9, ft: 71.8, tpm: 14, fact: '在雷諾大角羊場均 18 分，入選 Showcase 第一隊後被勇士召回' },
     basis: {
@@ -71,7 +74,7 @@ export const MENUS = [
     focus: '中距離＋禁區＋罰球，切入型後衛的定點基本功', inspired: true, challenge: true,
     passRule: [{ type: '2pt', minPct: 50 }, { type: 'ft', minPct: 70 }],
     passDesc: '2 分 ≥50% 且罰球 ≥70%',
-    full: ['mid_lc', 'mid_lw', 'mid_top', 'mid_rw', 'mid_rc', 'paint', 'ft', 'ft', 'mid_lw', 'mid_top', 'mid_rw', 'ft'],
+    full: ['mid_lc', 'mid_lw', 'mid_top', 'mid_rw', 'mid_rc', 'layup_l', 'ft', 'ft', 'mid_lw', 'mid_top', 'layup_r', 'ft'],
     est: { full: 60 },
     career: { years: '2010–2019', fg: 43.3, tp: 34.2, ft: 80.9, tpm: 449, fact: '2012 年掀起「林來瘋」的傳奇後衛' },
     basis: {
@@ -171,7 +174,20 @@ export const MENUS = [
     },
   },
   {
-    id: 'curry_mvp', name: 'Curry MVP 球季', short: 'Curry MVP', player: 'Stephen Curry', playerStatus: 'active', tier: 11,
+    id: 'lin_taiwan', name: 'Jeremy Lin 台灣時期', short: 'Lin 台灣', player: 'Jeremy Lin', playerStatus: 'retired', tier: 11,
+    focus: '深三＋切入終結的國王風格：logo shot 果斷出手，上籃左右開弓', inspired: true, challenge: true,
+    passRule: [{ type: 'deep3', minPct: 32 }, { type: 'layup', minPct: 70 }],
+    passDesc: '深 3 ≥32% 且上籃 ≥70%',
+    full: ['layup_l', 'deep_top', 'ft', 'layup_r', 'deep_l', '3pt_top', 'ft', 'layup_l', 'deep_r', 'deep_top', 'ft', 'layup_r', 'deep_top'],
+    est: { full: 55 },
+    career: { label: '國王 2024–25 TPBL', years: '2023–25', fg: 43.4, tp: 35.9, ft: 71.9, tpm: 70, fact: 'TPBL 元年年度 MVP＋FMVP 雙料，率新北國王奪總冠軍' },
+    basis: {
+      text: '取材自 Lin 台灣時期以 logo shot 聞名的深三攻擊與切入終結風格（2025-03-22 對雲豹單場 36 分、三分 13 投 7 中），數據為 2024-25 TPBL 例行賽，非本人菜單',
+      source: 'tpbl.basketball', url: 'https://tpbl.basketball/news/168',
+    },
+  },
+  {
+    id: 'curry_mvp', name: 'Curry MVP 球季', short: 'Curry MVP', player: 'Stephen Curry', playerStatus: 'active', tier: 12,
     focus: '由近而遠爬坡：中距→三分→深三，一趟一趟拉遠', inspired: true, challenge: true,
     passRule: [{ type: '3pt', minPct: 42 }],
     passDesc: '3 分 ≥42%',
@@ -184,7 +200,7 @@ export const MENUS = [
     },
   },
   {
-    id: 'curry', name: 'Curry 終極試煉', short: 'Curry 試煉', player: 'Stephen Curry', playerStatus: 'active', tier: 12,
+    id: 'curry', name: 'Curry 終極試煉', short: 'Curry 試煉', player: 'Stephen Curry', playerStatus: 'active', tier: 13,
     focus: '全三分點＋深三＋罰球綜合定點', inspired: true, challenge: true,
     passRule: [{ type: '3pt', minPct: 45 }, { type: 'deep3', minPct: 35 }],
     passDesc: '3 分 ≥45% 且深 3 ≥35%（全破＝獲得徽章）',

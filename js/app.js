@@ -24,7 +24,7 @@ const BADGE_CONDITION = {
   volume_1000: '累計 1,000 顆',
   volume_5000: '累計 5,000 顆',
   volume_10000: '累計 10,000 顆',
-  ladder_complete: '全破挑戰階梯 12 關',
+  ladder_complete: '全破挑戰階梯 13 關',
 };
 const HOME_ROUTE = 'home'; // 首頁：有自己的路由但不佔 tab bar 格子（SPEC_M6 §1）
 

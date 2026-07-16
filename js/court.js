@@ -8,6 +8,11 @@
 // - mid_top：cy=350，罰球線後一步的頂端中距（約 5.4m），與罰球點在圖上明確分開。
 // 兩點中心距 60px，足以讓 §2 的 r=30 熱區點不相碰。
 export const SPOTS = [
+  // 上籃點：籃框兩側、比 paint（距框 66px）更貼框——cx 偏移 60px、cy 100，
+  // 距框中心約 64px（≈1.3m），左右對稱，都在禁區內。獨立球種 'layup'，
+  // 不併入 2 分聚合（aggregate byType 天然分開）。
+  { id: "layup_l", label: "左側上籃", type: "layup", cx: 315, cy: 100 },
+  { id: "layup_r", label: "右側上籃", type: "layup", cx: 435, cy: 100 },
   { id: "paint", label: "禁區近筐", type: "2pt", cx: 375, cy: 145 },
   { id: "mid_lc", label: "左底角中距", type: "2pt", cx: 150, cy: 100 },
   { id: "mid_lw", label: "左 45° 中距", type: "2pt", cx: 215, cy: 235 },
@@ -29,7 +34,7 @@ export function getSpot(id) {
   return SPOTS.find((s) => s.id === id) || null;
 }
 
-const TYPE_LABEL = { "2pt": "2 分", "3pt": "3 分", deep3: "深 3", ft: "罰球" };
+const TYPE_LABEL = { "2pt": "2 分", "3pt": "3 分", deep3: "深 3", ft: "罰球", layup: "上籃" };
 export function typeLabel(type) {
   return TYPE_LABEL[type] || type;
 }

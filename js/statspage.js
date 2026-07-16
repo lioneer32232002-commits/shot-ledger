@@ -23,6 +23,7 @@ const TYPE_CHIPS = [
   { key: '3pt', label: '3 分', type: '3pt' },
   { key: 'deep3', label: '深 3', type: 'deep3' },
   { key: 'ft', label: '罰球', type: 'ft' },
+  { key: 'layup', label: '上籃', type: 'layup' },
 ];
 
 const CALENDAR_WEEKS = 26;

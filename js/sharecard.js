@@ -31,8 +31,8 @@ const COLORS = {
 };
 
 const FONT_FAMILY = '-apple-system, "Segoe UI", "Noto Sans TC", sans-serif';
-const TYPE_OPTIONS = ['2pt', '3pt', 'deep3', 'ft'];
-const TYPE_LABEL = { '2pt': '2 分', '3pt': '3 分', deep3: '深 3', ft: '罰球' };
+const TYPE_OPTIONS = ['2pt', '3pt', 'deep3', 'ft', 'layup'];
+const TYPE_LABEL = { '2pt': '2 分', '3pt': '3 分', deep3: '深 3', ft: '罰球', layup: '上籃' };
 
 function variantLabel(variant) {
   if (variant === 'full') return '完整';
@@ -482,7 +482,7 @@ export function drawCard(canvas, data, opts = {}) {
 
   const leftColBottom = detailBaselineY + detailMetrics.desc;
 
-  // 3b. 右欄：球種一行一種、最多4行（TYPE_OPTIONS 上限），三欄固定錨點跨行
+  // 3b. 右欄：球種一行一種、最多5行（TYPE_OPTIONS 上限），三欄固定錨點跨行
   // 對齊（label 左對齊欄 x／count 右對齊欄 x+170／pct 右對齊欄 x+280，
   // 「深3 50/90 56%」實測欄寬微調）。x 起點用 pctFont 畫「100%」的最寬情境
   // 算死＋40px，不隨總命中率百分比位數浮動，卡與卡之間右欄位置穩定。

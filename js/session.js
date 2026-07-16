@@ -14,7 +14,7 @@ import {
 import { openShareSheet } from './sharecard.js';
 import { pageBannerHtml } from './pagebanner.js';
 
-const TYPE_OPTIONS = ['2pt', '3pt', 'deep3', 'ft'];
+const TYPE_OPTIONS = ['2pt', '3pt', 'deep3', 'ft', 'layup'];
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
 export const BADGE_LABEL = {
   ladder_complete: '全破挑戰階梯',
