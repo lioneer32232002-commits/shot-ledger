@@ -355,10 +355,12 @@ function renderLadderRow(ladder, unlockedIds, passedIds, currentId) {
       .join('');
     return `
       <button class="${cls.join(' ')}" ${unlocked ? `data-open-variant="${m.id}"` : 'disabled'}>
-        <span class="ladder-tile__tier">${m.tier}</span>
-        <span class="ladder-tile__name">${m.short || m.name}</span>
+        <span class="ladder-tile__tier" aria-hidden="true">${m.tier}</span>
         ${passed ? '<span class="ladder-tile__check" aria-hidden="true">✓</span>' : ''}
-        ${!unlocked ? `<span class="ladder-tile__lock">${lockIconSvg()}<span class="ladder-tile__cond">${condHtml}</span></span>` : ''}
+        <span class="ladder-tile__body">
+          <span class="ladder-tile__name">${m.short || m.name}</span>
+          ${!unlocked ? `<span class="ladder-tile__lock">${lockIconSvg()}<span class="ladder-tile__cond">${condHtml}</span></span>` : ''}
+        </span>
       </button>
     `;
   }).join('');
