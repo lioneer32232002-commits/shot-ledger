@@ -1,12 +1,12 @@
 // js/store.js
 // localStorage 讀寫、schema migration（v1→…→最新）、匯出/匯入/CSV、挑戰進度（progress）存取。
 
-import { MENUS } from './menus.js';
-import { isChallengeEligible, evaluatePassRule } from './stats.js';
+import { MENUS, getMenu, nextMenuId, ladderMenus } from './menus.js';
+import { isChallengeEligible, evaluatePassRule, sessionPct, aggregate, computeBadges } from './stats.js';
 // menus.js / stats.js 都是無相依的純資料／純函式模組，這裡 import 不會形成循環。
 
 const KEY = 'shotledger_v1';
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 8;
 
 function emptyProgress() {
   return { unlocked: ['lin_college'], best: {}, badges: [] };
@@ -127,6 +127,33 @@ function migrate(data) {
       (Array.isArray(data.progress?.unlocked) && data.progress.unlocked.some((id) => id !== 'lin_college'));
     data.settings.homeSeen = hasHistory;
     data.schema = 7;
+  }
+
+  if (data.schema < 8) {
+    // 誠實機制 2.0（時長下限廢除，唯一標準改為輪距中位；見 stats.js paceAssessment）：
+    // 用「新」規則重算最高通過關卡（照抄 v6 的「最高通過 index+1 全解鎖」手法）——
+    // 舊機制下被時長規則冤枉的場次（中位 ≥60 秒但總時長 <20 分）會自動補解鎖。
+    // 「詢問區」（中位 30〜60 秒）且未確認的舊場次視為不列入（paceConfirmed 未設定）。
+    // 只加不減：算出來的解鎖若比現有少，保留現有（不收回任何已解鎖關卡）。
+    const ladder = MENUS.filter((m) => m.challenge).slice().sort((a, b) => a.tier - b.tier);
+    let highestPassedIdx = -1;
+    ladder.forEach((m, i) => {
+      const passed = data.sessions.some(
+        (s) =>
+          s.mode === m.id &&
+          s.variant === 'full' &&
+          s.endedAt &&
+          isChallengeEligible(s) &&
+          evaluatePassRule(s, m.passRule).pass
+      );
+      if (passed) highestPassedIdx = i;
+    });
+    if (!data.progress || typeof data.progress !== 'object') data.progress = emptyProgress();
+    if (!Array.isArray(data.progress.unlocked)) data.progress.unlocked = [];
+    for (let i = 0; i <= highestPassedIdx + 1 && i < ladder.length; i += 1) {
+      if (!data.progress.unlocked.includes(ladder[i].id)) data.progress.unlocked.push(ladder[i].id);
+    }
+    data.schema = 8;
   }
 
   // 保底：不管資料是從哪個版本進來的，progress / settings.inputMode / settings.weeklyGoal / settings.theme / settings.cardBg / settings.homeSeen 形狀都要正確。
@@ -264,6 +291,72 @@ export function addBadge(state, badgeId) {
   state.progress.badges.push(badgeId);
   save(state);
   return true;
+}
+
+/**
+ * 結算一節挑戰並套用到 progress（個人最佳／解鎖／徽章）——正常結算與
+ * confirmPace（詢問區補確認）共用的唯一路徑，避免兩套邏輯漂移。
+ * 冪等：unlockMenu / addBadge / updateBest 對已寫入的資料都是 no-op，重跑安全。
+ * @param {Object} state
+ * @param {Object} session
+ * @returns {{eligible:boolean, evalRes:Object, isNewBest:boolean, unlockedMenuId:string|null, badgeEarned:string|null, newBadges?:Array}|null}
+ */
+export function applyChallengeResult(state, session) {
+  const menu = getMenu(session.mode);
+  let challengeResult = null;
+
+  if (menu && menu.challenge && session.variant === 'full') {
+    const eligible = isChallengeEligible(session);
+    const evalRes = evaluatePassRule(session, menu.passRule);
+    const sp = sessionPct(session);
+    const agg = aggregate(session.rounds);
+    const prevBest = state.progress.best[menu.id];
+    const isNewBest = sp !== null && (!prevBest || sp > prevBest.pct);
+
+    if (isNewBest) {
+      // date 用場次結束時間而非「現在」：confirmPace 補確認舊場次時，PB 日期才是實際練球日。
+      updateBest(state, menu.id, { pct: sp, att: agg.total.att, mk: agg.total.mk, date: session.endedAt || new Date().toISOString() });
+    }
+
+    let unlockedMenuId = null;
+    let badgeEarned = null;
+    if (eligible && evalRes.pass) {
+      const next = nextMenuId(menu.id);
+      if (next && unlockMenu(state, next)) {
+        unlockedMenuId = next;
+      }
+      const ladder = ladderMenus();
+      const lastMenuId = ladder.length ? ladder[ladder.length - 1].id : null;
+      if (menu.id === lastMenuId && addBadge(state, 'ladder_complete')) {
+        badgeEarned = 'ladder_complete';
+      }
+    }
+
+    challengeResult = { eligible, evalRes, isNewBest, unlockedMenuId, badgeEarned };
+  }
+
+  const newBadges = computeBadges(state.sessions, new Date()).filter((b) => !state.progress.badges.includes(b));
+  newBadges.forEach((b) => addBadge(state, b));
+  if (newBadges.length) {
+    challengeResult = challengeResult || {};
+    challengeResult.newBadges = newBadges;
+  }
+
+  return challengeResult;
+}
+
+/**
+ * 詢問區（節奏 30〜60 秒）的回答：把 paceConfirmed 寫進 session 並存檔。
+ * confirmed=true 時用「和正常結算完全相同的路徑」重新評估該場（applyChallengeResult），
+ * 回傳其結果（含 unlockedMenuId，UI 據此觸發既有 celebration 流程）；false 回傳 null。
+ */
+export function confirmPace(state, sessionId, confirmed) {
+  const s = getSession(state, sessionId);
+  if (!s) return null;
+  s.paceConfirmed = confirmed === true;
+  save(state);
+  if (s.paceConfirmed) return applyChallengeResult(state, s);
+  return null;
 }
 
 /** 設定逐球／快速輸入偏好（存進 settings，跨節記住）。 */

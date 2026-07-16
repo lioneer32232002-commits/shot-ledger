@@ -8,7 +8,7 @@ import { renderCourt, getSpot, typeLabel } from './court.js';
 import {
   aggregate, pct, recentTypeAvg, todaySummary,
   roundCurve, earlyLateSplit, evaluatePassRule, sessionPct,
-  isChallengeEligible, challengeIneligibleReason, pctGapToShots, typeAvgAllTime, computeBadges,
+  isChallengeEligible, challengeIneligibleReason, paceAssessment, pctGapToShots, typeAvgAllTime,
   equivalentTier, lifetimeTotals, weekAttempts, challengeForecast,
 } from './stats.js';
 import { openShareSheet } from './sharecard.js';
@@ -149,16 +149,8 @@ function formatElapsed(startedAt) {
 function startTimer() {
   stopTimer();
   timerId = setInterval(() => {
-    if (!root || !activeSession) return;
-    const el = root.querySelector('.js-elapsed');
-    if (el) el.textContent = formatElapsed(activeSession.startedAt);
-    // 挑戰進度區的時長提示：未滿 20 分鐘隨秒更新，滿 20 分鐘整行移除。
-    const hint = root.querySelector('.js-unlock-hint');
-    if (hint) {
-      const elapsedMin = (Date.now() - new Date(activeSession.startedAt).getTime()) / 60000;
-      if (elapsedMin >= 20) hint.remove();
-      else hint.textContent = `解鎖需滿 20 分鐘（目前 ${formatElapsed(activeSession.startedAt)}）`;
-    }
+    const el = root && root.querySelector('.js-elapsed');
+    if (el && activeSession) el.textContent = formatElapsed(activeSession.startedAt);
   }, 1000);
 }
 
@@ -321,7 +313,7 @@ function renderCareerHtml(career, passRule) {
 function renderHeroCard(menu, isPassed) {
   const best = state.progress.best[menu.id];
   const bestHtml = best
-    ? `<span class="nowrap">${best.pct}%</span> <span class="hero-card__best-date nowrap">（${formatShortDate(best.date)}）</span>`
+    ? `<span class="nowrap">${best.pct}%${typeof best.att === 'number' ? '・' + best.att + ' 球' : ''}</span> <span class="hero-card__best-date nowrap">（${formatShortDate(best.date)}）</span>`
     : '尚無完整版紀錄';
   const recentFull = latestFullSession(menu.id);
 
@@ -422,6 +414,13 @@ function renderVariantSheetHtml(menu) {
           <span class="variant-option__meta">約 ${menu.est.full} 分・${menu.full.length} 輪・${menu.full.length * 10} 球</span>
         </button>
       `
+    : isChallenge
+    ? `
+        <button class="variant-option" data-variant="full">
+          <span class="variant-option__name">開始挑戰</span>
+          <span class="variant-option__meta">約 ${menu.est.full} 分・${menu.full.length} 輪・${menu.full.length * 10} 球</span>
+        </button>
+      `
     : `
         <button class="variant-option" data-variant="">
           <span class="variant-option__name">開始練習</span>
@@ -434,7 +433,7 @@ function renderVariantSheetHtml(menu) {
       <div class="sheet">
         <h3 class="sheet__title">${menu.name}</h3>
         <p class="sheet__focus">${menu.focus}</p>
-        ${isChallenge ? `<p class="sheet__sub">解鎖下一關只認完整版：${menu.passDesc}</p>` : ''}
+        ${isChallenge ? `<p class="sheet__sub">過關門檻：${menu.passDesc}</p>` : ''}
         <div class="variant-options">${optionsHtml}</div>
         ${menu.basis ? `
           <div class="sheet-note">
@@ -447,8 +446,8 @@ function renderVariantSheetHtml(menu) {
           <div class="sheet-note">
             <p class="sheet-note__title">誠實機制</p>
             <ul class="sheet-note__list">
-              <li>完整版總時長 ≥20 分、簡易版 ≥10 分</li>
-              <li>輪與輪節奏不過快，才列入解鎖評估</li>
+              <li>輪與輪保持真實練習節奏即列入解鎖評估</li>
+              <li>節奏偏快時會在結算時跟你確認（例如有人幫撿球）</li>
               <li>沒達標也照樣存檔進統計</li>
             </ul>
           </div>
@@ -589,6 +588,9 @@ function bindVariantSheet() {
 function startSession(modeId, variant) {
   const menu = getMenu(modeId);
   if (!menu) return;
+  // 挑戰菜單已無簡易版：舊紀錄的「再來一次／再挑戰一次」若還帶著 'easy'，
+  // 一律開完整版（getMenuRounds 對缺 easy 的菜單會回 null，否則會誤開成自由選點）。
+  if (variant === 'easy' && !menu.easy) variant = 'full';
   activeSession = store.startSession(state, modeId, variant);
   attemptsForRound = 10;
   editingRoundIndex = null;
@@ -779,18 +781,10 @@ function renderActive() {
     `
     : '';
 
-  // UX 走查：時長提示——解鎖有 20 分鐘誠實下限（stats.js isChallengeEligible），
-  // 進行中未滿 20 分時給一行 faint 小字，隨計時器更新，滿 20 分由 startTimer 移除。
-  const elapsedMin = (Date.now() - new Date(activeSession.startedAt).getTime()) / 60000;
-  const unlockHintHtml = elapsedMin < 20
-    ? `<p class="live-progress__duration-hint js-unlock-hint">解鎖需滿 20 分鐘（目前 ${formatElapsed(activeSession.startedAt)}）</p>`
-    : '';
-
   const liveProgressHtml = menu.challenge && activeSession.variant === 'full'
     ? `<section class="live-progress">
         <h2 class="section-title">挑戰進度（即時）</h2>
         ${renderPassRuleBars(evaluatePassRule(activeSession, menu.passRule).detail, forecast ? forecast.detail : null)}
-        ${unlockHintHtml}
       </section>
       ${forecastBannerHtml}`
     : '';
@@ -1190,48 +1184,10 @@ function finishSession() {
   renderView();
 }
 
-/** 節結束當下算一次挑戰結果並套用到 progress（解鎖 / 個人最佳 / 徽章），只在這裡呼叫一次，避免每次重新渲染都重複解鎖。 */
+/** 節結束當下算一次挑戰結果並套用到 progress（解鎖 / 個人最佳 / 徽章），只在這裡呼叫一次，避免每次重新渲染都重複解鎖。
+ *  實際邏輯抽到 store.applyChallengeResult（confirmPace 補確認時走同一條路徑）。 */
 function computeAndApplyChallengeResult(session) {
-  const menu = getMenu(session.mode);
-  let challengeResult = null;
-
-  if (menu && menu.challenge && session.variant === 'full') {
-    const eligible = isChallengeEligible(session);
-    const evalRes = evaluatePassRule(session, menu.passRule);
-    const sp = sessionPct(session);
-    const agg = aggregate(session.rounds);
-    const prevBest = state.progress.best[menu.id];
-    const isNewBest = sp !== null && (!prevBest || sp > prevBest.pct);
-
-    if (isNewBest) {
-      store.updateBest(state, menu.id, { pct: sp, att: agg.total.att, mk: agg.total.mk, date: new Date().toISOString() });
-    }
-
-    let unlockedMenuId = null;
-    let badgeEarned = null;
-    if (eligible && evalRes.pass) {
-      const next = nextMenuId(menu.id);
-      if (next && store.unlockMenu(state, next)) {
-        unlockedMenuId = next;
-      }
-      const ladder = ladderMenus();
-      const lastMenuId = ladder.length ? ladder[ladder.length - 1].id : null;
-      if (menu.id === lastMenuId && store.addBadge(state, 'ladder_complete')) {
-        badgeEarned = 'ladder_complete';
-      }
-    }
-
-    challengeResult = { eligible, evalRes, isNewBest, unlockedMenuId, badgeEarned };
-  }
-
-  const newBadges = computeBadges(state.sessions, new Date()).filter((b) => !state.progress.badges.includes(b));
-  newBadges.forEach((b) => store.addBadge(state, b));
-  if (newBadges.length) {
-    challengeResult = challengeResult || {};
-    challengeResult.newBadges = newBadges;
-  }
-
-  return challengeResult;
+  return store.applyChallengeResult(state, session);
 }
 
 // ---------------------------------------------------------------------------
@@ -1373,8 +1329,22 @@ function renderChallengeSection(menu, session, justFinished) {
     return gap !== null && gap <= 2;
   });
 
+  // 誠實機制 2.0 詢問區：節奏 30〜60 秒且尚未回答過 → 結算時問一次，
+  // 回答會寫進 session.paceConfirmed（store.confirmPace），之後永遠不再問。
+  const pace = paceAssessment(session);
+  const askPending = pace.level === 'ask' && session.paceConfirmed === undefined;
+
   let bannerHtml;
-  if (!eligible) {
+  if (askPending) {
+    bannerHtml = `
+      <div class="pace-ask">
+        <p class="pace-ask__text">這次節奏很快（中位 ${Math.round(pace.medianSec)} 秒/輪）。如果這是真實練習——例如有人幫你撿球——可以列入解鎖評估。</p>
+        <div class="pace-ask__actions">
+          <button class="btn btn--secondary" data-pace-confirm="yes">列入評估</button>
+          <button class="btn btn--ghost" data-pace-confirm="no">不列入</button>
+        </div>
+      </div>`;
+  } else if (!eligible) {
     const reason = challengeIneligibleReason(session);
     bannerHtml = `
       <div class="challenge-note challenge-note--ineligible">
@@ -1512,6 +1482,22 @@ export function renderSessionSummary(container, session, allSessions, opts = {})
       requestRetry(retryBtn.dataset.menu, retryBtn.dataset.variant);
     });
   }
+
+  // 詢問區（節奏 30〜60 秒）回答：寫入 paceConfirmed 後整段重渲染——
+  // 「列入」走與正常結算相同的路徑重新評估（可能觸發解鎖 celebration），
+  // 「不列入」顯示既有的「未列入解鎖評估」徽章。cardState 是呼叫端自己的
+  // store 狀態（結束頁與紀錄詳情各自傳入），session 物件屬於同一份狀態。
+  container.querySelectorAll('[data-pace-confirm]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (!cardState) return;
+      const confirmed = btn.dataset.paceConfirm === 'yes';
+      const result = store.confirmPace(cardState, session.id, confirmed);
+      renderSessionSummary(container, session, allSessions, {
+        ...opts,
+        justFinished: confirmed ? result : null,
+      });
+    });
+  });
 
   const celebration = container.querySelector('.celebration');
   if (celebration) {

@@ -1991,12 +1991,6 @@ a {
   gap: var(--space-2);
 }
 
-/* 解鎖時長提示：未滿 20 分鐘時的一行 faint 小字（滿 20 分由計時器移除） */
-.live-progress__duration-hint {
-  font-size: var(--text-xs);
-  color: var(--color-text-faint);
-}
-
 /* M5 §2：整體不可達標橫幅——低調紙感卡片＋danger 色標題文字，不做成警告框
    （這個 App 的品味不是 alert 風）。一列兩顆半寬鈕，不新增全寬主鈕（M4.4）。 */
 .forecast-banner {
@@ -2627,6 +2621,33 @@ a {
 .rule-row--ineligible {
   background: var(--color-surface-sunken);
   color: var(--color-text-muted);
+}
+
+/* 誠實機制 2.0 詢問卡：節奏 30〜60 秒、未回答過時在結算頁問一次。
+   中性紙感卡片，不做警告框；「不列入」是較中性的預設選項。 */
+.pace-ask {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.pace-ask__text {
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--color-text);
+}
+
+.pace-ask__actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.pace-ask__actions .btn {
+  flex: 1;
 }
 
 .challenge-note--pass {

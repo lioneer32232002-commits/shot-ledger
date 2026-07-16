@@ -183,41 +183,56 @@ export function sessionPct(session) {
 }
 
 /**
- * 挑戰不合格原因（誠實機制的說明版）：回傳人話原因字串，合格回傳 null。
- * 檢查邏輯與 isChallengeEligible 完全一致（isChallengeEligible 直接以本函式實作）。
+ * 誠實機制 2.0：以「輪與輪中位間隔」三段式評估練習節奏（時長下限已廢除）。
+ * - 中位 ≥60 秒 → level 'auto'（自動列入）
+ * - 中位 30〜60 秒 → level 'ask'（詢問區：看 session.paceConfirmed）
+ * - 中位 <30 秒 → level 'out'（點著玩的速度，直接不列入）
+ * 不足兩輪（沒有間隔可算）→ level 'auto'、medianSec null（維持舊行為：視為通過節奏檢查）。
  * @param {Object} session
- * @returns {string|null}
+ * @returns {{level: 'auto'|'ask'|'out', medianSec: number|null}}
  */
-export function challengeIneligibleReason(session) {
-  if (!session || !session.variant) return '不是挑戰變體的練習';
-  const minDuration = session.variant === 'full' ? 20 : 10;
-  const rounds = session.rounds || [];
-  if (rounds.length === 0) return `總時長未滿 ${minDuration} 分鐘`;
-
-  const startMs = new Date(session.startedAt).getTime();
-  const lastRoundMs = new Date(rounds[rounds.length - 1].at).getTime();
-  const endMs = session.endedAt ? new Date(session.endedAt).getTime() : lastRoundMs;
-  const durationMin = (endMs - startMs) / 60000;
-  if (!(durationMin >= minDuration)) return `總時長未滿 ${minDuration} 分鐘`;
-
+export function paceAssessment(session) {
+  const rounds = (session && session.rounds) || [];
   const roundTimes = rounds.map((r) => new Date(r.at).getTime()).sort((a, b) => a - b);
   const intervals = [];
   for (let i = 1; i < roundTimes.length; i++) {
     intervals.push((roundTimes[i] - roundTimes[i - 1]) / 1000);
   }
-  if (intervals.length > 0) {
-    intervals.sort((a, b) => a - b);
-    const mid = Math.floor(intervals.length / 2);
-    const median = intervals.length % 2 === 0 ? (intervals[mid - 1] + intervals[mid]) / 2 : intervals[mid];
-    if (!(median >= 90)) return '輪與輪的節奏過快';
-  }
+  if (intervals.length === 0) return { level: 'auto', medianSec: null };
 
+  intervals.sort((a, b) => a - b);
+  const mid = Math.floor(intervals.length / 2);
+  const median = intervals.length % 2 === 0 ? (intervals[mid - 1] + intervals[mid]) / 2 : intervals[mid];
+
+  if (median >= 60) return { level: 'auto', medianSec: median };
+  if (median >= 30) return { level: 'ask', medianSec: median };
+  return { level: 'out', medianSec: median };
+}
+
+/**
+ * 挑戰不合格原因（誠實機制 2.0 的說明版）：回傳人話原因字串，合格回傳 null。
+ * 'ask' 區看 session.paceConfirmed：true → 列入（null）；false / 未設定 → 不列入。
+ * isChallengeEligible 直接以本函式實作，兩者永遠一致。
+ * @param {Object} session
+ * @returns {string|null}
+ */
+export function challengeIneligibleReason(session) {
+  if (!session || !session.variant) return '不是挑戰變體的練習';
+  const rounds = session.rounds || [];
+  if (rounds.length === 0) return '沒有任何輪次紀錄';
+
+  const pace = paceAssessment(session);
+  if (pace.level === 'out') return `輪與輪的節奏過快（中位 ${Math.round(pace.medianSec)} 秒）`;
+  if (pace.level === 'ask') {
+    if (session.paceConfirmed === true) return null;
+    if (session.paceConfirmed === false) return '節奏偏快';
+    return '節奏偏快，尚未確認為真實練習';
+  }
   return null;
 }
 
 /**
- * 挑戰資格（誠實機制）：完整版總時長需 ≥20 分、簡易版 ≥10 分，
- * 且輪與輪之間的中位間隔需 ≥90 秒，才算是「真實練習節奏」。
+ * 挑戰資格（誠實機制 2.0）：唯一標準是輪與輪的中位間隔（見 paceAssessment）。
  * variant 為 null（自由練習等）一律不合格（此函式本來就只給挑戰節用）。
  * @param {Object} session
  * @returns {boolean}
