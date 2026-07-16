@@ -8,7 +8,7 @@ import { renderCourt, getSpot, typeLabel } from './court.js';
 import {
   aggregate, pct, recentTypeAvg, todaySummary,
   roundCurve, earlyLateSplit, evaluatePassRule, sessionPct,
-  isChallengeEligible, pctGapToShots, typeAvgAllTime, computeBadges,
+  isChallengeEligible, challengeIneligibleReason, pctGapToShots, typeAvgAllTime, computeBadges,
   equivalentTier, lifetimeTotals, weekAttempts, challengeForecast,
 } from './stats.js';
 import { openShareSheet } from './sharecard.js';
@@ -149,8 +149,16 @@ function formatElapsed(startedAt) {
 function startTimer() {
   stopTimer();
   timerId = setInterval(() => {
-    const el = root && root.querySelector('.js-elapsed');
-    if (el && activeSession) el.textContent = formatElapsed(activeSession.startedAt);
+    if (!root || !activeSession) return;
+    const el = root.querySelector('.js-elapsed');
+    if (el) el.textContent = formatElapsed(activeSession.startedAt);
+    // 挑戰進度區的時長提示：未滿 20 分鐘隨秒更新，滿 20 分鐘整行移除。
+    const hint = root.querySelector('.js-unlock-hint');
+    if (hint) {
+      const elapsedMin = (Date.now() - new Date(activeSession.startedAt).getTime()) / 60000;
+      if (elapsedMin >= 20) hint.remove();
+      else hint.textContent = `解鎖需滿 20 分鐘（目前 ${formatElapsed(activeSession.startedAt)}）`;
+    }
   }, 1000);
 }
 
@@ -258,7 +266,7 @@ function renderPassRuleBars(detail, forecastDetail) {
   `;
 }
 
-/** rule bar 下的預估小字（M5 §2）：已達標／不可行／還需 X 球（剩 Y 球額度）。 */
+/** rule bar 下的預估小字（M5 §2）：已達標／不可行／吃緊時才提示還需 X 球。 */
 function renderForecastLineHtml(fd) {
   if (!fd) return '';
   if (fd.remainingNeed === 0) {
@@ -267,7 +275,12 @@ function renderForecastLineHtml(fd) {
   if (!fd.feasible) {
     return `<p class="rule-bar__forecast is-danger">已無法達標</p>`;
   }
-  return `<p class="rule-bar__forecast">還需 ${fd.remainingNeed} 球（剩 ${fd.futureAtt} 球額度）</p>`;
+  // UX 走查：新手看不懂「額度」，平常保持安靜；只在吃緊（還需球數吃掉
+  // 剩餘額度一半以上）時才出現，當作「快要不可能達標」的警示。
+  if (fd.remainingNeed >= fd.futureAtt * 0.5) {
+    return `<p class="rule-bar__forecast">還需 ${fd.remainingNeed} 球（剩 ${fd.futureAtt} 球額度）</p>`;
+  }
+  return '';
 }
 
 // 球員生涯數據面板「夜幕數據面板」（數據與查證紀錄在 menus.js 的 career 欄位，
@@ -289,15 +302,19 @@ function renderCareerHtml(career, passRule) {
       <span class="career-panel__stat-label nowrap">${s.label}</span>
     </div>
   `).join('');
+  // UX 走查：夜幕面板改為預設收合的 <details>（第一屏讓位給 SHOT 鈕），
+  // summary 做成一行刊物欄目標題，開合狀態不持久化。
   return `
-    <div class="career-panel">
-      <div class="career-panel__caption">
-        <span class="nowrap">${career.label || ('NBA ' + career.years)}</span>
-        <span class="nowrap">生涯數據</span>
+    <details class="career-details">
+      <summary class="career-details__summary">
+        <span class="nowrap">${career.label || ('NBA ' + career.years)} 生涯數據</span>
+        <span class="career-details__marker" aria-hidden="true">▸</span>
+      </summary>
+      <div class="career-panel">
+        <div class="career-panel__stats">${statsHtml}</div>
+        <p class="career-panel__fact">${career.fact}</p>
       </div>
-      <div class="career-panel__stats">${statsHtml}</div>
-      <p class="career-panel__fact">${career.fact}</p>
-    </div>
+    </details>
   `;
 }
 
@@ -762,10 +779,18 @@ function renderActive() {
     `
     : '';
 
+  // UX 走查：時長提示——解鎖有 20 分鐘誠實下限（stats.js isChallengeEligible），
+  // 進行中未滿 20 分時給一行 faint 小字，隨計時器更新，滿 20 分由 startTimer 移除。
+  const elapsedMin = (Date.now() - new Date(activeSession.startedAt).getTime()) / 60000;
+  const unlockHintHtml = elapsedMin < 20
+    ? `<p class="live-progress__duration-hint js-unlock-hint">解鎖需滿 20 分鐘（目前 ${formatElapsed(activeSession.startedAt)}）</p>`
+    : '';
+
   const liveProgressHtml = menu.challenge && activeSession.variant === 'full'
     ? `<section class="live-progress">
         <h2 class="section-title">挑戰進度（即時）</h2>
         ${renderPassRuleBars(evaluatePassRule(activeSession, menu.passRule).detail, forecast ? forecast.detail : null)}
+        ${unlockHintHtml}
       </section>
       ${forecastBannerHtml}`
     : '';
@@ -1319,9 +1344,19 @@ function renderChallengeSection(menu, session, justFinished) {
   const eligible = isChallengeEligible(session);
   const evalRes = evaluatePassRule(session, menu.passRule);
 
+  // UX 走查：節奏/時長不合格時不畫 ✓/✗（避免「過了！→咦沒解鎖？」的情緒落差），
+  // 命中率 vs 門檻照樣顯示，但整列中性灰、不帶成敗色。
   const ruleRows = evalRes.detail.map((d) => {
     const met = d.pct !== null && d.pct >= d.need;
     const gap = met ? 0 : pctGapToShots(d.att, d.mk, d.need);
+    if (!eligible) {
+      return `
+        <li class="rule-row rule-row--ineligible">
+          <span class="rule-row__type">${typeLabel(d.type)}</span>
+          <span class="rule-row__value">${d.pct === null ? '—' : d.pct + '%'} ／ 門檻 ${d.need}%</span>
+        </li>
+      `;
+    }
     return `
       <li class="rule-row ${met ? 'is-met' : 'is-unmet'}">
         <span class="rule-row__icon" aria-hidden="true">${met ? '✓' : '✗'}</span>
@@ -1340,7 +1375,12 @@ function renderChallengeSection(menu, session, justFinished) {
 
   let bannerHtml;
   if (!eligible) {
-    bannerHtml = `<p class="challenge-note challenge-note--neutral">這次練習節奏低於真實下限，不列入解鎖評估。</p>`;
+    const reason = challengeIneligibleReason(session);
+    bannerHtml = `
+      <div class="challenge-note challenge-note--ineligible">
+        <span class="ineligible-badge">未列入解鎖評估</span>
+        <p class="challenge-note__desc">${reason}，這次不列入解鎖評估——數據照樣存進統計</p>
+      </div>`;
   } else if (evalRes.pass) {
     bannerHtml = `<p class="challenge-note challenge-note--pass">挑戰通過！</p>`;
   } else {

@@ -13,6 +13,19 @@ import { lifetimeTotals, pct } from './stats.js';
 import { pageBannerHtml } from './pagebanner.js';
 
 const VALID_TABS = ['train', 'stats', 'history', 'settings'];
+
+// 設定頁徽章清單：全部 7 顆依成就順序列出，未獲得的顯示灰剪影＋取得條件，
+// 讓新使用者看得到「有什麼可追」（UX 走查）。
+const BADGE_ORDER = ['streak_3', 'streak_7', 'streak_30', 'volume_1000', 'volume_5000', 'volume_10000', 'ladder_complete'];
+const BADGE_CONDITION = {
+  streak_3: '連續練習 3 天',
+  streak_7: '連續練習 7 天',
+  streak_30: '連續練習 30 天',
+  volume_1000: '累計 1,000 顆',
+  volume_5000: '累計 5,000 顆',
+  volume_10000: '累計 10,000 顆',
+  ladder_complete: '全破挑戰階梯 12 關',
+};
 const HOME_ROUTE = 'home'; // 首頁：有自己的路由但不佔 tab bar 格子（SPEC_M6 §1）
 
 // 聯絡版主：純 mailto，不接後端也不收使用者資料。主旨先填好，回信時比較好歸類。
@@ -187,9 +200,13 @@ function renderSettings() {
       ? `<p class="settings-reminder">已累積 ${unbacked} 次練習尚未備份，建議匯出一份 JSON 存起來。</p>`
       : '';
 
-  const badgesHtml = badges.length
-    ? `<div class="badge-chips">${badges.map((b) => `<span class="badge-chip">${BADGE_LABEL[b] || b}</span>`).join('')}</div>`
-    : `<p class="settings-card__row">尚未獲得徽章，練起來！</p>`;
+  // 已獲得排前面（依成就順序），未獲得的灰剪影＋取得條件短句接在後面。
+  const earnedChips = BADGE_ORDER.filter((b) => badges.includes(b))
+    .concat(badges.filter((b) => !BADGE_ORDER.includes(b))) // 防禦：不在清單裡的既有徽章照樣顯示
+    .map((b) => `<span class="badge-chip">${BADGE_LABEL[b] || b}</span>`);
+  const lockedChips = BADGE_ORDER.filter((b) => !badges.includes(b))
+    .map((b) => `<span class="badge-chip badge-chip--locked">${BADGE_CONDITION[b] || BADGE_LABEL[b] || b}</span>`);
+  const badgesHtml = `<div class="badge-chips">${earnedChips.join('')}${lockedChips.join('')}</div>`;
 
   const theme = settingsState.settings.theme;
   const themeOptions = [

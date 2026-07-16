@@ -183,23 +183,22 @@ export function sessionPct(session) {
 }
 
 /**
- * 挑戰資格（誠實機制）：完整版總時長需 ≥20 分、簡易版 ≥10 分，
- * 且輪與輪之間的中位間隔需 ≥90 秒，才算是「真實練習節奏」。
- * variant 為 null（自由練習等）一律不合格（此函式本來就只給挑戰節用）。
+ * 挑戰不合格原因（誠實機制的說明版）：回傳人話原因字串，合格回傳 null。
+ * 檢查邏輯與 isChallengeEligible 完全一致（isChallengeEligible 直接以本函式實作）。
  * @param {Object} session
- * @returns {boolean}
+ * @returns {string|null}
  */
-export function isChallengeEligible(session) {
-  if (!session || !session.variant) return false;
+export function challengeIneligibleReason(session) {
+  if (!session || !session.variant) return '不是挑戰變體的練習';
+  const minDuration = session.variant === 'full' ? 20 : 10;
   const rounds = session.rounds || [];
-  if (rounds.length === 0) return false;
+  if (rounds.length === 0) return `總時長未滿 ${minDuration} 分鐘`;
 
   const startMs = new Date(session.startedAt).getTime();
   const lastRoundMs = new Date(rounds[rounds.length - 1].at).getTime();
   const endMs = session.endedAt ? new Date(session.endedAt).getTime() : lastRoundMs;
   const durationMin = (endMs - startMs) / 60000;
-  const minDuration = session.variant === 'full' ? 20 : 10;
-  if (!(durationMin >= minDuration)) return false;
+  if (!(durationMin >= minDuration)) return `總時長未滿 ${minDuration} 分鐘`;
 
   const roundTimes = rounds.map((r) => new Date(r.at).getTime()).sort((a, b) => a - b);
   const intervals = [];
@@ -210,10 +209,21 @@ export function isChallengeEligible(session) {
     intervals.sort((a, b) => a - b);
     const mid = Math.floor(intervals.length / 2);
     const median = intervals.length % 2 === 0 ? (intervals[mid - 1] + intervals[mid]) / 2 : intervals[mid];
-    if (!(median >= 90)) return false;
+    if (!(median >= 90)) return '輪與輪的節奏過快';
   }
 
-  return true;
+  return null;
+}
+
+/**
+ * 挑戰資格（誠實機制）：完整版總時長需 ≥20 分、簡易版 ≥10 分，
+ * 且輪與輪之間的中位間隔需 ≥90 秒，才算是「真實練習節奏」。
+ * variant 為 null（自由練習等）一律不合格（此函式本來就只給挑戰節用）。
+ * @param {Object} session
+ * @returns {boolean}
+ */
+export function isChallengeEligible(session) {
+  return challengeIneligibleReason(session) === null;
 }
 
 /**
