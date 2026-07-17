@@ -161,8 +161,8 @@ function stopTimer() {
   }
 }
 
+// 完整版是預設，不標；只有簡易版（綜合巡迴、舊紀錄）才需要區分。
 function variantLabel(variant) {
-  if (variant === 'full') return '完整版';
   if (variant === 'easy') return '簡易版';
   return '';
 }

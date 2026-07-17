@@ -34,8 +34,8 @@ const FONT_FAMILY = '-apple-system, "Segoe UI", "Noto Sans TC", sans-serif';
 const TYPE_OPTIONS = ['2pt', '3pt', 'deep3', 'ft', 'layup'];
 const TYPE_LABEL = { '2pt': '2 分', '3pt': '3 分', deep3: '深 3', ft: '罰球', layup: '上籃' };
 
+// 完整版是預設，不標；只有簡易版（綜合巡迴、舊紀錄）才需要區分。
 function variantLabel(variant) {
-  if (variant === 'full') return '完整';
   if (variant === 'easy') return '簡易';
   return '';
 }

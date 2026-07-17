@@ -58,7 +58,7 @@ function renderList() {
     const menu = getMenu(s.mode);
     const agg = aggregate(s.rounds);
     const p = pct(agg.total.mk, agg.total.att);
-    const vLabel = s.variant === 'full' ? '完整' : s.variant === 'easy' ? '簡易' : '';
+    const vLabel = s.variant === 'easy' ? '簡易' : ''; // 完整版是預設，不標
     // 挑戰達標標記：只對「挑戰菜單＋完整版」判定（照 sharecard.js 的模式）；
     // 自由練習、綜合巡迴、簡易版不顯示（簡易版本來就不能解鎖，顯示未達標會誤導）。
     let passTagHtml = '';
