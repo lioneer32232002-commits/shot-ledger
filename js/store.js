@@ -2,14 +2,14 @@
 // localStorage 讀寫、schema migration（v1→…→最新）、匯出/匯入/CSV、挑戰進度（progress）存取。
 
 import { MENUS, getMenu, nextMenuId, ladderMenus } from './menus.js';
-import { isChallengeEligible, evaluatePassRule, sessionPct, aggregate, computeBadges } from './stats.js';
+import { isChallengeEligible, evaluatePassRule, sessionPct, aggregate, computeBadges, evaluateStars } from './stats.js';
 // menus.js / stats.js 都是無相依的純資料／純函式模組，這裡 import 不會形成循環。
 
 const KEY = 'shotledger_v1';
-const SCHEMA_VERSION = 9;
+const SCHEMA_VERSION = 10;
 
 function emptyProgress() {
-  return { unlocked: ['lin_college'], best: {}, badges: [] };
+  return { unlocked: ['lin_college'], best: {}, badges: [], stars: {} };
 }
 
 function emptyState() {
@@ -171,12 +171,35 @@ function migrate(data) {
     data.schema = 9;
   }
 
+  if (data.schema < 10) {
+    // 三星制回溯發星：掃全部「挑戰＋完整版＋已結束＋合格」的歷史場次，
+    // evaluateStars OR 進 progress.stars（一經取得永不失去；解鎖邏輯零改動，
+    // ★1 只是把現有 passRule 結果存成星）。詢問區未確認的舊場次自然不合格、不發星。
+    if (!data.progress || typeof data.progress !== 'object') data.progress = emptyProgress();
+    if (!data.progress.stars || typeof data.progress.stars !== 'object') data.progress.stars = {};
+    const challengeMenus = MENUS.filter((m) => m.challenge);
+    for (const s of data.sessions) {
+      if (!s.endedAt || s.variant !== 'full') continue;
+      const menu = challengeMenus.find((m) => m.id === s.mode);
+      if (!menu || !isChallengeEligible(s)) continue;
+      const earned = evaluateStars(menu, s);
+      const cur = data.progress.stars[menu.id] || { unlock: false, signature: false, high: false };
+      data.progress.stars[menu.id] = {
+        unlock: cur.unlock || earned.unlock,
+        signature: cur.signature || earned.signature,
+        high: cur.high || earned.high,
+      };
+    }
+    data.schema = 10;
+  }
+
   // 保底：不管資料是從哪個版本進來的，progress / settings.inputMode / settings.weeklyGoal / settings.theme / settings.cardBg / settings.homeSeen 形狀都要正確。
   if (!data.progress || typeof data.progress !== 'object') data.progress = emptyProgress();
   if (!Array.isArray(data.progress.unlocked)) data.progress.unlocked = ['lin_college'];
   if (!data.progress.unlocked.includes('lin_college')) data.progress.unlocked.push('lin_college');
   if (!data.progress.best || typeof data.progress.best !== 'object') data.progress.best = {};
   if (!Array.isArray(data.progress.badges)) data.progress.badges = [];
+  if (!data.progress.stars || typeof data.progress.stars !== 'object') data.progress.stars = {};
   if (!('inputMode' in data.settings)) data.settings.inputMode = 'quick';
   if (!('weeklyGoal' in data.settings)) data.settings.weeklyGoal = null;
   if (!('theme' in data.settings)) data.settings.theme = 'auto';
@@ -309,12 +332,13 @@ export function addBadge(state, badgeId) {
 }
 
 /**
- * 結算一節挑戰並套用到 progress（個人最佳／解鎖／徽章）——正常結算與
+ * 結算一節挑戰並套用到 progress（個人最佳／解鎖／徽章／三星）——正常結算與
  * confirmPace（詢問區補確認）共用的唯一路徑，避免兩套邏輯漂移。
- * 冪等：unlockMenu / addBadge / updateBest 對已寫入的資料都是 no-op，重跑安全。
+ * 冪等：unlockMenu / addBadge / updateBest 對已寫入的資料都是 no-op，重跑安全；
+ * 星星 OR 合併同理——同一節重跑，newStars 全為 false。
  * @param {Object} state
  * @param {Object} session
- * @returns {{eligible:boolean, evalRes:Object, isNewBest:boolean, unlockedMenuId:string|null, badgeEarned:string|null, newBadges?:Array}|null}
+ * @returns {{eligible:boolean, evalRes:Object, isNewBest:boolean, unlockedMenuId:string|null, badgeEarned:string|null, newBadges?:Array, stars?:Object, newStars?:Object}|null}
  */
 export function applyChallengeResult(state, session) {
   const menu = getMenu(session.mode);
@@ -348,6 +372,29 @@ export function applyChallengeResult(state, session) {
     }
 
     challengeResult = { eligible, evalRes, isNewBest, unlockedMenuId, badgeEarned };
+
+    if (eligible) {
+      // 三星 OR 合併：一經取得永不失去。newStars 只記「這次新翻成 true」的旗標，
+      // 用來在結算頁顯示「新獲得 ★★」；已經有的星不算新獲得。
+      const earned = evaluateStars(menu, session);
+      const cur = state.progress.stars[menu.id] || { unlock: false, signature: false, high: false };
+      const merged = {
+        unlock: cur.unlock || earned.unlock,
+        signature: cur.signature || earned.signature,
+        high: cur.high || earned.high,
+      };
+      const newStars = {
+        unlock: !cur.unlock && merged.unlock,
+        signature: !cur.signature && merged.signature,
+        high: !cur.high && merged.high,
+      };
+      if (newStars.unlock || newStars.signature || newStars.high) {
+        state.progress.stars[menu.id] = merged;
+        save(state);
+      }
+      challengeResult.stars = merged;
+      challengeResult.newStars = newStars;
+    }
   }
 
   const newBadges = computeBadges(state.sessions, new Date()).filter((b) => !state.progress.badges.includes(b));

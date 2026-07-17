@@ -177,6 +177,17 @@ function unlockedLadderCount(state) {
   return { unlocked, total: ladder.length };
 }
 
+/** 三星制總覽：total 動態算（關卡數 × 3），不寫死數字（階梯關數之後還可能再變）。 */
+function starsCount(state) {
+  const ladder = ladderMenus();
+  const earned = ladder.reduce((sum, m) => {
+    const s = state.progress.stars[m.id];
+    if (!s) return sum;
+    return sum + [s.unlock, s.signature, s.high].filter(Boolean).length;
+  }, 0);
+  return { earned, total: ladder.length * 3 };
+}
+
 function formatBackupTime(iso) {
   if (!iso) return '尚未備份過';
   const d = new Date(iso);
@@ -192,6 +203,7 @@ function renderSettings() {
   const { sessionCount, roundCount } = countStats(settingsState);
   const unbacked = store.unbackedUpCount(settingsState);
   const { unlocked, total } = unlockedLadderCount(settingsState);
+  const { earned: starsEarned, total: starsTotal } = starsCount(settingsState);
   const lifetime = lifetimeTotals(settingsState.sessions);
   const lifetimePct = pct(lifetime.mk, lifetime.att);
   const badges = settingsState.progress.badges;
@@ -243,6 +255,7 @@ function renderSettings() {
         <h2 class="settings-card__title">資料狀態</h2>
         <p class="settings-card__row">目前共 <strong class="nowrap">${sessionCount} 次練習</strong> / <strong class="nowrap">${roundCount} 輪</strong></p>
         <p class="settings-card__row">挑戰階梯：已解鎖 <strong class="nowrap">${unlocked}/${total} 關</strong></p>
+        <p class="settings-card__row">星星：<strong class="nowrap">${starsEarned} / ${starsTotal}</strong></p>
         <p class="settings-card__row">生涯累計：<strong class="nowrap">${formatThousands(lifetime.att)} 投</strong> / <strong class="nowrap">${formatThousands(lifetime.mk)} 中</strong>${lifetimePct === null ? '' : `<span class="nowrap">（${lifetimePct}%）</span>`}</p>
         <p class="settings-card__row nowrap">上次備份：${formatBackupTime(settingsState.settings.lastBackupAt)}</p>
         ${reminderHtml}

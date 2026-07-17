@@ -182,6 +182,148 @@ export function sessionPct(session) {
   return pct(agg.total.mk, agg.total.att);
 }
 
+// ---------------------------------------------------------------------------
+// 三星制：★1 解鎖星（= passRule）、★2 簽名星（每關專屬）、★3 高標星（每條 +10pp）
+// ---------------------------------------------------------------------------
+
+/** 依 filterFn 篩出的輪合計 {att, mk, pct}（pct 沿用 pct()：0 出手回 null）。 */
+function groupTotals(rounds, filterFn) {
+  let att = 0;
+  let mk = 0;
+  for (const r of rounds) {
+    if (!filterFn(r)) continue;
+    att += Number(r.attempts) || 0;
+    mk += Number(r.makes) || 0;
+  }
+  return { att, mk, pct: pct(mk, att) };
+}
+
+/**
+ * 簽名星判定（★2）：每關一條專屬規則，全部以「該場 rounds 的實際內容」計算，
+ * 不依賴輪次編號——新舊菜單版本的場次都能正確判定。防禦原則：資料裡沒有
+ * 規則所需的結構（缺點位、無深三輪、無連兩輪同點…）一律不成立，不給白拿。
+ * @param {string} menuId
+ * @param {Array} rounds 依時間排序後的輪次
+ * @returns {boolean}
+ */
+function evaluateSignature(menuId, rounds) {
+  const mkOf = (r) => Number(r.makes) || 0;
+
+  switch (menuId) {
+    case 'lin_college': {
+      // 課表收官：最後一輪罰球投 7 進以上（最後一輪不是罰球則不成立）。
+      const last = rounds[rounds.length - 1];
+      return !!last && last.type === 'ft' && mkOf(last) >= 7;
+    }
+    case 'lin_dleague': {
+      // 折返穩定：左右兩翼皆有出手，命中率差 ≤10 個百分點。
+      const lw = groupTotals(rounds, (r) => r.spot === 'mid_lw');
+      const rw = groupTotals(rounds, (r) => r.spot === 'mid_rw');
+      return lw.pct !== null && rw.pct !== null && Math.abs(lw.pct - rw.pct) <= 10;
+    }
+    case 'lin': {
+      // 先發制人：前 3 輪合計命中率 ≥50%（＝本關 2 分門檻）；不足 3 輪不成立。
+      if (rounds.length < 3) return false;
+      const first3 = rounds.slice(0, 3);
+      const g = groupTotals(first3, () => true);
+      return g.pct !== null && g.pct >= 50;
+    }
+    case 'dirk_rookie': {
+      // 單點鑽研：所有罰球線頂（mid_top）輪皆 makes ≥5；沒有 mid_top 輪不成立。
+      const topRounds = rounds.filter((r) => r.spot === 'mid_top');
+      return topRounds.length > 0 && topRounds.every((r) => mkOf(r) >= 5);
+    }
+    case 'dirk': {
+      // 金雞獨立：任一 2 分輪單輪 8 進。
+      return rounds.some((r) => r.type === '2pt' && mkOf(r) >= 8);
+    }
+    case 'allen_bucks': {
+      // 底角殺手：兩側底角（3pt_lc＋3pt_rc）合計 ≥40%（需有出手）。
+      const g = groupTotals(rounds, (r) => r.spot === '3pt_lc' || r.spot === '3pt_rc');
+      return g.pct !== null && g.pct >= 40;
+    }
+    case 'allen': {
+      // 儀式不亂：沒有任何一輪掉到 3 球以下。
+      return rounds.every((r) => mkOf(r) >= 3);
+    }
+    case 'klay_rise': {
+      // 穩了才換點：每組「連續兩輪同 spot」第二輪不退步；無此結構不成立。
+      let pairs = 0;
+      for (let i = 1; i < rounds.length; i++) {
+        if (rounds[i].spot && rounds[i].spot === rounds[i - 1].spot) {
+          pairs += 1;
+          if (mkOf(rounds[i]) < mkOf(rounds[i - 1])) return false;
+        }
+      }
+      return pairs > 0;
+    }
+    case 'klay': {
+      // 量產不停：依時間序前後對半分（奇數輪中間歸前半），後半總進球 ≥ 前半。
+      if (rounds.length < 2) return false;
+      const half = Math.ceil(rounds.length / 2);
+      const early = rounds.slice(0, half).reduce((sum, r) => sum + mkOf(r), 0);
+      const late = rounds.slice(half).reduce((sum, r) => sum + mkOf(r), 0);
+      return late >= early;
+    }
+    case 'lillard': {
+      // Dame Time：最後一個深三輪投 4 進以上；無深三輪不成立。
+      const deepRounds = rounds.filter((r) => r.type === 'deep3');
+      const last = deepRounds[deepRounds.length - 1];
+      return !!last && mkOf(last) >= 4;
+    }
+    case 'lin_taiwan': {
+      // 左右開弓：左右上籃各自合計 ≥70%（兩側皆有出手）。
+      const l = groupTotals(rounds, (r) => r.spot === 'layup_l');
+      const r = groupTotals(rounds, (r2) => r2.spot === 'layup_r');
+      return l.pct !== null && l.pct >= 70 && r.pct !== null && r.pct >= 70;
+    }
+    case 'curry_mvp': {
+      // 全點開花：每個出現過的 3 分點位（依 spot 分組）合計命中率 ≥40%；無 3 分輪不成立。
+      const spots = new Set(rounds.filter((r) => r.type === '3pt' && r.spot).map((r) => r.spot));
+      if (spots.size === 0) return false;
+      for (const spot of spots) {
+        const g = groupTotals(rounds, (r) => r.spot === spot);
+        if (g.pct === null || g.pct < 40) return false;
+      }
+      return true;
+    }
+    case 'curry': {
+      // 雙修：3 分合計 ≥50% 且深 3 合計 ≥40%（同場皆超門檻 5pp）。
+      const three = groupTotals(rounds, (r) => r.type === '3pt');
+      const deep = groupTotals(rounds, (r) => r.type === 'deep3');
+      return three.pct !== null && three.pct >= 50 && deep.pct !== null && deep.pct >= 40;
+    }
+    default:
+      return false;
+  }
+}
+
+/**
+ * 三星評估（純函式，不看 eligibility——由呼叫端把關「合格＋完整版」）：
+ * - unlock：evaluatePassRule 過（現有解鎖門檻，本函式不影響解鎖邏輯本身）
+ * - signature：該關專屬規則（evaluateSignature）
+ * - high：passRule 每一條 minPct +10 個百分點全數達成
+ * @param {Object} menu
+ * @param {Object} session
+ * @returns {{unlock:boolean, signature:boolean, high:boolean}}
+ */
+export function evaluateStars(menu, session) {
+  const none = { unlock: false, signature: false, high: false };
+  if (!menu || !menu.challenge || !Array.isArray(menu.passRule) || menu.passRule.length === 0) return none;
+  if (!session || !Array.isArray(session.rounds) || session.rounds.length === 0) return none;
+
+  const unlock = evaluatePassRule(session, menu.passRule).pass;
+  const highRule = menu.passRule.map((r) => ({ type: r.type, minPct: r.minPct + 10 }));
+  const high = evaluatePassRule(session, highRule).pass;
+
+  const ordered = session.rounds
+    .slice()
+    .sort((a, b) => new Date(a.at || 0).getTime() - new Date(b.at || 0).getTime());
+  const signature = evaluateSignature(menu.id, ordered);
+
+  return { unlock, signature, high };
+}
+
 /**
  * 誠實機制 2.0：以「輪與輪中位間隔」三段式評估練習節奏（時長下限已廢除）。
  * - 中位 ≥60 秒 → level 'auto'（自動列入）

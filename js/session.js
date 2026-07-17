@@ -310,6 +310,25 @@ function renderCareerHtml(career, passRule) {
   `;
 }
 
+/**
+ * 三星列（★1 解鎖／★2 簽名／★3 高標）共用渲染。stars 可能是 undefined（一顆都沒拿到）。
+ * opts.passed：已通過關卡的磁磚上，拿到的星改用 success 色（呼應 .ladder-tile.is-passed）；
+ * 其餘一律 accent 色。未拿到的星維持同一個 ★ 字符、只是用邊框色（輪廓感，不搶浮水印風采）。
+ * @param {{unlock:boolean, signature:boolean, high:boolean}|undefined} stars
+ * @param {{passed?:boolean, className?:string}} [opts]
+ * @returns {string}
+ */
+function starRowHtml(stars, opts = {}) {
+  const s = stars || { unlock: false, signature: false, high: false };
+  const flags = [s.unlock, s.signature, s.high];
+  const count = flags.filter(Boolean).length;
+  const cls = ['star-row'];
+  if (opts.className) cls.push(opts.className);
+  const onCls = opts.passed ? 'star is-on is-on-passed' : 'star is-on';
+  const spans = flags.map((on) => `<span class="${on ? onCls : 'star'}" aria-hidden="true">★</span>`).join('');
+  return `<span class="${cls.join(' ')}" aria-label="星星 ${count}/3">${spans}</span>`;
+}
+
 function renderHeroCard(menu, isPassed) {
   const best = state.progress.best[menu.id];
   const bestHtml = best
@@ -324,11 +343,19 @@ function renderHeroCard(menu, isPassed) {
   // 關卡序號浮水印（雜誌刊號感，氛圍用，資訊仍以「第 X 關 / 6」小字為準）
   const bignum = String(menu.tier).padStart(2, '0');
 
+  // 星數乾淨為準：一顆都沒拿到就不顯示，不用 0/3 提醒使用者「還沒有」。
+  const heroStars = state.progress.stars[menu.id];
+  const heroStarCount = heroStars ? [heroStars.unlock, heroStars.signature, heroStars.high].filter(Boolean).length : 0;
+  const heroStarsHtml = heroStarCount > 0 ? `<span class="hero-card__stars nowrap">★ ${heroStarCount}/3</span>` : '';
+
   return `
     <section class="hero-card">
       <span class="hero-card__bignum" aria-hidden="true">${bignum}</span>
       <div class="hero-card__top">
-        <span class="hero-card__tier">第 ${menu.tier} 關 / ${ladderMenus().length}</span>
+        <span class="hero-card__tier-group">
+          <span class="hero-card__tier">第 ${menu.tier} 關 / ${ladderMenus().length}</span>
+          ${heroStarsHtml}
+        </span>
         ${isPassed ? '<span class="hero-card__passed">✓ 已通過</span>' : ''}
       </div>
       <h2 class="hero-card__name">${menu.name}</h2>
@@ -362,12 +389,14 @@ function renderLadderRow(ladder, unlockedIds, passedIds, currentId) {
     const condHtml = (m.passRule || [])
       .map((r) => `<span class="nowrap">${typeLabel(r.type)} ≥${r.minPct}%</span>`)
       .join('');
+    const starsHtml = unlocked ? starRowHtml(state.progress.stars[m.id], { passed, className: 'ladder-tile__stars' }) : '';
     return `
       <button class="${cls.join(' ')}" ${unlocked ? `data-open-variant="${m.id}"` : 'disabled'}>
         <span class="ladder-tile__tier" aria-hidden="true">${m.tier}</span>
         ${passed ? '<span class="ladder-tile__check" aria-hidden="true">✓</span>' : ''}
         <span class="ladder-tile__body">
           <span class="ladder-tile__name">${m.short || m.name}</span>
+          ${starsHtml}
           ${!unlocked ? `<span class="ladder-tile__lock">${lockIconSvg()}<span class="ladder-tile__cond">${condHtml}</span></span>` : ''}
         </span>
       </button>
@@ -428,12 +457,24 @@ function renderVariantSheetHtml(menu) {
         </button>
       `;
 
+  const starsSheetHtml = isChallenge && menu.signature
+    ? `
+        <div class="sheet__star-lines">
+          <p class="sheet__sub">★ 過關門檻：${menu.passDesc}</p>
+          <p class="sheet__sub">★★ ${menu.signature.label}：${menu.signature.desc}</p>
+          <p class="sheet__sub">★★★ 高標：${(menu.passRule || []).map((r) => `${typeLabel(r.type)} ≥${r.minPct + 10}%`).join(' 且')}</p>
+        </div>
+      `
+    : isChallenge
+    ? `<p class="sheet__sub">過關門檻：${menu.passDesc}</p>`
+    : '';
+
   return `
     <div class="sheet-backdrop" data-action="close-variant">
       <div class="sheet">
         <h3 class="sheet__title">${menu.name}</h3>
         <p class="sheet__focus">${menu.focus}</p>
-        ${isChallenge ? `<p class="sheet__sub">過關門檻：${menu.passDesc}</p>` : ''}
+        ${starsSheetHtml}
         <div class="variant-options">${optionsHtml}</div>
         ${menu.basis ? `
           <div class="sheet-note">
@@ -1294,7 +1335,7 @@ function renderEquivalentTierSection(menu, session) {
   `;
 }
 
-function renderChallengeSection(menu, session, justFinished) {
+function renderChallengeSection(menu, session, justFinished, progressState) {
   if (!menu || !menu.challenge || session.variant !== 'full') return '';
 
   const eligible = isChallengeEligible(session);
@@ -1369,12 +1410,37 @@ function renderChallengeSection(menu, session, justFinished) {
     ? renderUnlockCelebration(getMenu(justFinished.unlockedMenuId), justFinished.badgeEarned)
     : '';
 
+  // 三星狀態列：本次結算後的最新星星（justFinished.stars）優先；純看歷史（history.js
+  // 傳 opts.state、沒有 justFinished）就退回讀 progressState.progress.stars。兩邊都沒有
+  // 資料就整列不顯示（不畫三顆空星誤導使用者「這關還沒有星」）。
+  const starsData = (justFinished && justFinished.stars)
+    || (progressState && progressState.progress && progressState.progress.stars
+      ? progressState.progress.stars[menu.id]
+      : null);
+  const starsStatusHtml = starsData
+    ? `<div class="challenge-stars">${starRowHtml(starsData)}</div>`
+    : '';
+
+  // 「新獲得」只在剛結算（或 confirmPace 補確認）當下顯示，純看歷史紀錄不會有 justFinished.newStars。
+  const newStars = justFinished && justFinished.newStars;
+  const newStarLines = [];
+  if (newStars) {
+    if (newStars.unlock) newStarLines.push('新獲得 ★ 解鎖星');
+    if (newStars.signature) newStarLines.push(`新獲得 ★★ 簽名星：${menu.signature ? menu.signature.label : ''}`);
+    if (newStars.high) newStarLines.push('新獲得 ★★★ 高標星');
+  }
+  const newStarsHtml = newStarLines
+    .map((line) => `<p class="challenge-note challenge-note--record">${line}</p>`)
+    .join('');
+
   return `
     <section class="challenge-section">
       <h3 class="section-title">挑戰結果</h3>
+      ${starsStatusHtml}
       <ul class="rule-list">${ruleRows}</ul>
       ${bannerHtml}
       ${newBestHtml}
+      ${newStarsHtml}
       ${retryHtml}
       ${celebrateHtml}
     </section>
@@ -1422,7 +1488,7 @@ export function renderSessionSummary(container, session, allSessions, opts = {})
 
   const curveHtml = renderRoundCurveSection(session.rounds);
   const splitHtml = renderEarlyLateSection(session.rounds);
-  const challengeHtml = renderChallengeSection(menu, session, justFinished);
+  const challengeHtml = renderChallengeSection(menu, session, justFinished, cardState);
   const equivalentHtml = renderEquivalentTierSection(menu, session);
 
   container.innerHTML = `
