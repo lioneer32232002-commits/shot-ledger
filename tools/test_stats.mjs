@@ -7,7 +7,7 @@ import {
   isChallengeEligible, pctGapToShots, evaluateStars,
   equivalentTier, lifetimeTotals,
   sessionsInRange, pctSeries, calendarCells, avgRoundCurve, weekAttempts,
-  challengeForecast,
+  challengeForecast, maxStreakDays, computeBadges,
 } from '../js/stats.js';
 
 let passed = 0;
@@ -828,6 +828,70 @@ test('7. futureTypes 空陣列的收尾判定：已達標則 feasible true，未
   assert.equal(dNotMet.remainingNeed, 5);
   assert.equal(dNotMet.feasible, false); // 剩 0 球額度但還差 5 顆，已無法達標
   assert.equal(resNotMet.feasible, false);
+});
+
+console.log('maxStreakDays()');
+
+/** 產生「某天有一節已結束練習」的 session（相對今天往回 offset 天）。 */
+function dayFixture(dayOffset, att = 10) {
+  const t = new Date();
+  t.setDate(t.getDate() - dayOffset);
+  t.setHours(10, 0, 0, 0);
+  return {
+    startedAt: t.toISOString(),
+    endedAt: new Date(t.getTime() + 3600000).toISOString(),
+    rounds: [{ attempts: att, makes: Math.floor(att / 2), type: '2pt' }],
+  };
+}
+
+test('空陣列回傳 0；單日回傳 1', () => {
+  assert.equal(maxStreakDays([]), 0);
+  assert.equal(maxStreakDays([dayFixture(0)]), 1);
+});
+
+test('歷史最長連續：中斷後重來，取最長的一段', () => {
+  // 10/9/8 三連＋5/4 兩連 → 3
+  const sessions = [10, 9, 8, 5, 4].map((d) => dayFixture(d));
+  assert.equal(maxStreakDays(sessions), 3);
+});
+
+test('最長一段在很久以前也算（不像 streakDays 只看現在）', () => {
+  // 30〜26 五連（已中斷）＋今天 1 天 → 5
+  const sessions = [30, 29, 28, 27, 26, 0].map((d) => dayFixture(d));
+  assert.equal(maxStreakDays(sessions), 5);
+});
+
+test('未結束的節不算天；同一天多節只算一天', () => {
+  const unfinished = { ...dayFixture(1), endedAt: null };
+  assert.equal(maxStreakDays([unfinished]), 0);
+  assert.equal(maxStreakDays([dayFixture(0), dayFixture(0), dayFixture(1)]), 2);
+});
+
+console.log('computeBadges()');
+
+test('全零 → 沒有任何徽章', () => {
+  assert.deepEqual(computeBadges([], new Date()), []);
+});
+
+test('出席五級門檻：連續 14 天拿 3/7/14，拿不到 30/60', () => {
+  const sessions = Array.from({ length: 14 }, (_, i) => dayFixture(i));
+  const badges = computeBadges(sessions, new Date());
+  assert.ok(badges.includes('streak_3') && badges.includes('streak_7') && badges.includes('streak_14'));
+  assert.ok(!badges.includes('streak_30') && !badges.includes('streak_60'));
+});
+
+test('投量六級門檻：累計 2,600 顆拿 1000/2500，拿不到 5000 以上', () => {
+  const sessions = [dayFixture(0, 2600)];
+  const badges = computeBadges(sessions, new Date());
+  assert.ok(badges.includes('volume_1000') && badges.includes('volume_2500'));
+  assert.ok(!badges.includes('volume_5000') && !badges.includes('volume_25000') && !badges.includes('volume_50000'));
+});
+
+test('streak 中斷只看現在：昨天前天有練、今天沒練 → 不發連續徽章', () => {
+  // streakDays 從 now 往回數，今天沒練 → 0（maxStreakDays 才看歷史，那是 migration 的事）
+  const sessions = [dayFixture(1), dayFixture(2), dayFixture(3)];
+  const badges = computeBadges(sessions, new Date());
+  assert.ok(!badges.some((b) => b.startsWith('streak_')));
 });
 
 console.log(`\n${passed} 個測試通過`);

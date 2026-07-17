@@ -9,6 +9,7 @@ import * as historyPage from './history.js';
 import * as homePage from './home.js';
 import { MENUS, ladderMenus } from './menus.js';
 import { formatThousands } from './session.js';
+import { starsCount } from './badges.js';
 import { lifetimeTotals, pct } from './stats.js';
 import { pageBannerHtml } from './pagebanner.js';
 
@@ -163,17 +164,6 @@ function unlockedLadderCount(state) {
   const ladder = ladderMenus();
   const unlocked = ladder.filter((m) => state.progress.unlocked.includes(m.id)).length;
   return { unlocked, total: ladder.length };
-}
-
-/** 三星制總覽：total 動態算（關卡數 × 3），不寫死數字（階梯關數之後還可能再變）。 */
-function starsCount(state) {
-  const ladder = ladderMenus();
-  const earned = ladder.reduce((sum, m) => {
-    const s = state.progress.stars[m.id];
-    if (!s) return sum;
-    return sum + [s.unlock, s.signature, s.high].filter(Boolean).length;
-  }, 0);
-  return { earned, total: ladder.length * 3 };
 }
 
 function formatBackupTime(iso) {

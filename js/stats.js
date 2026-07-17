@@ -443,17 +443,43 @@ export function streakDays(sessions, now) {
   return streak;
 }
 
-/** 出席／投量徽章 id 清單（連續 3/7/30 天、累計 1000/5000/10000 球）。 */
+/** 歷史最長連續練習天數（本地時區同年月日）——回溯發章用：新徽章上線前
+ *  曾經連過的天數也要算，不能只看「現在還活著的 streak」。 */
+export function maxStreakDays(sessions) {
+  const days = new Set();
+  for (const s of sessions || []) {
+    if (!s.endedAt) continue;
+    const d = new Date(s.startedAt);
+    days.add(new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime());
+  }
+  const sorted = [...days].sort((a, b) => a - b);
+  let best = 0;
+  let run = 0;
+  let prev = null;
+  for (const t of sorted) {
+    run = prev !== null && t - prev === 86400000 ? run + 1 : 1;
+    if (run > best) best = run;
+    prev = t;
+  }
+  return best;
+}
+
+// 出席／投量徽章門檻（2026-07-17 擴充：跨階細一點但不太容易，每級約兩倍）。
+export const STREAK_BADGE_TIERS = [
+  [3, 'streak_3'], [7, 'streak_7'], [14, 'streak_14'], [30, 'streak_30'], [60, 'streak_60'],
+];
+export const VOLUME_BADGE_TIERS = [
+  [1000, 'volume_1000'], [2500, 'volume_2500'], [5000, 'volume_5000'],
+  [10000, 'volume_10000'], [25000, 'volume_25000'], [50000, 'volume_50000'],
+];
+
+/** 出席／投量徽章 id 清單（連續 3/7/14/30/60 天、累計 1000〜50000 球）。 */
 export function computeBadges(sessions, now) {
   const badges = [];
   const streak = streakDays(sessions, now);
-  if (streak >= 3) badges.push('streak_3');
-  if (streak >= 7) badges.push('streak_7');
-  if (streak >= 30) badges.push('streak_30');
+  for (const [n, id] of STREAK_BADGE_TIERS) if (streak >= n) badges.push(id);
   const total = totalAttempts(sessions);
-  if (total >= 1000) badges.push('volume_1000');
-  if (total >= 5000) badges.push('volume_5000');
-  if (total >= 10000) badges.push('volume_10000');
+  for (const [n, id] of VOLUME_BADGE_TIERS) if (total >= n) badges.push(id);
   return badges;
 }
 

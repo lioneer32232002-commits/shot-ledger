@@ -2,11 +2,14 @@
 // localStorage 讀寫、schema migration（v1→…→最新）、匯出/匯入/CSV、挑戰進度（progress）存取。
 
 import { MENUS, getMenu, nextMenuId, ladderMenus } from './menus.js';
-import { isChallengeEligible, evaluatePassRule, sessionPct, aggregate, computeBadges, evaluateStars } from './stats.js';
+import {
+  isChallengeEligible, evaluatePassRule, sessionPct, aggregate, computeBadges, evaluateStars,
+  maxStreakDays, totalAttempts, STREAK_BADGE_TIERS, VOLUME_BADGE_TIERS,
+} from './stats.js';
 // menus.js / stats.js 都是無相依的純資料／純函式模組，這裡 import 不會形成循環。
 
 const KEY = 'shotledger_v1';
-const SCHEMA_VERSION = 10;
+const SCHEMA_VERSION = 11;
 
 function emptyProgress() {
   return { unlocked: ['lin_college'], best: {}, badges: [], stars: {} };
@@ -193,6 +196,26 @@ function migrate(data) {
     data.schema = 10;
   }
 
+  if (data.schema < 11) {
+    // 徽章擴充回溯發章（7→17 顆，2026-07-17）。跑在 v10（回溯發星）之後，
+    // 摘星徽章才看得到完整星數。與所有徽章一樣只加不減：
+    // - 出席用「歷史最長連續」補發——新章上線前連過的也算，不能只看現在還活著的 streak
+    // - 投量是單調累計，直接比門檻
+    // - 階梯里程碑（通過 3／7 關）與摘星（10／25／全滿）從 progress 現況補發
+    if (!data.progress || typeof data.progress !== 'object') data.progress = emptyProgress();
+    if (!Array.isArray(data.progress.badges)) data.progress.badges = [];
+    const badges = data.progress.badges;
+    const addIf = (cond, id) => {
+      if (cond && !badges.includes(id)) badges.push(id);
+    };
+    const maxStreak = maxStreakDays(data.sessions);
+    for (const [n, id] of STREAK_BADGE_TIERS) addIf(maxStreak >= n, id);
+    const total = totalAttempts(data.sessions);
+    for (const [n, id] of VOLUME_BADGE_TIERS) addIf(total >= n, id);
+    computeProgressBadges(data.progress).forEach((id) => addIf(true, id));
+    data.schema = 11;
+  }
+
   // 保底：不管資料是從哪個版本進來的，progress / settings.inputMode / settings.weeklyGoal / settings.theme / settings.cardBg / settings.homeSeen 形狀都要正確。
   if (!data.progress || typeof data.progress !== 'object') data.progress = emptyProgress();
   if (!Array.isArray(data.progress.unlocked)) data.progress.unlocked = ['lin_college'];
@@ -323,6 +346,34 @@ export function updateBest(state, menuId, record) {
   return true;
 }
 
+/**
+ * 進度型徽章（階梯里程碑＋摘星）：看 progress 現況、與 sessions 無關。
+ * 「通過」判定與 session.js 階梯頁同一套（下一關已解鎖、末關看 ladder_complete）；
+ * 星星全滿門檻動態算（關數 × 3），關數之後再變也不用改這裡。
+ */
+function computeProgressBadges(progress) {
+  const ladder = ladderMenus();
+  const unlocked = Array.isArray(progress.unlocked) ? progress.unlocked : [];
+  const badgeList = Array.isArray(progress.badges) ? progress.badges : [];
+  const starsMap = progress.stars && typeof progress.stars === 'object' ? progress.stars : {};
+  const passed = ladder.filter((m, i) => {
+    const next = ladder[i + 1];
+    if (next) return unlocked.includes(next.id);
+    return badgeList.includes('ladder_complete');
+  }).length;
+  const stars = ladder.reduce((sum, m) => {
+    const s = starsMap[m.id];
+    return sum + (s ? [s.unlock, s.signature, s.high].filter(Boolean).length : 0);
+  }, 0);
+  const out = [];
+  if (passed >= 3) out.push('ladder_3');
+  if (passed >= 7) out.push('ladder_7');
+  if (stars >= 10) out.push('stars_10');
+  if (stars >= 25) out.push('stars_25');
+  if (stars >= ladder.length * 3) out.push('stars_full');
+  return out;
+}
+
 /** 新增一個徽章；已擁有則回傳 false。 */
 export function addBadge(state, badgeId) {
   if (state.progress.badges.includes(badgeId)) return false;
@@ -397,7 +448,10 @@ export function applyChallengeResult(state, session) {
     }
   }
 
-  const newBadges = computeBadges(state.sessions, new Date()).filter((b) => !state.progress.badges.includes(b));
+  // 出席／投量看 sessions，階梯里程碑／摘星看 progress（此時解鎖與星星都已合併完成）。
+  const newBadges = computeBadges(state.sessions, new Date())
+    .concat(computeProgressBadges(state.progress))
+    .filter((b) => !state.progress.badges.includes(b));
   newBadges.forEach((b) => addBadge(state, b));
   if (newBadges.length) {
     challengeResult = challengeResult || {};
