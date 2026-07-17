@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   aggregate, pct, recentTypeAvg, todaySummary,
   roundCurve, earlyLateSplit, evaluatePassRule, sessionPct,
-  isChallengeEligible, pctGapToShots,
+  isChallengeEligible, pctGapToShots, evaluateStars,
   equivalentTier, lifetimeTotals,
   sessionsInRange, pctSeries, calendarCells, avgRoundCurve, weekAttempts,
   challengeForecast,
@@ -298,57 +298,95 @@ test('variant 為 null 一律不合格', () => {
   assert.equal(isChallengeEligible({ variant: null, rounds: [{ at: '2026-07-12T00:00:00.000Z' }] }), false);
 });
 
-test('完整版時長邊界：剛好 20 分合格，19 分 59 秒不合格', () => {
+// 誠實機制 2.0（M7 第一包）：唯一標準＝輪與輪中位間隔，總時長門檻已廢除。
+// ≥60s auto 列入／30–60s 看 session.paceConfirmed／<30s 不列入。
+function paceSession(intervalSec, extra = {}) {
   const start = '2026-07-12T00:00:00.000Z';
   const rounds = Array.from({ length: 12 }, (_, i) => ({
-    at: new Date(new Date(start).getTime() + (i + 1) * 100 * 1000).toISOString(), // 每輪間隔 100 秒 >90
+    at: new Date(new Date(start).getTime() + (i + 1) * intervalSec * 1000).toISOString(),
   }));
-  const okSession = { variant: 'full', startedAt: start, endedAt: new Date(new Date(start).getTime() + 20 * 60000).toISOString(), rounds };
-  const shortSession = { variant: 'full', startedAt: start, endedAt: new Date(new Date(start).getTime() + 20 * 60000 - 1000).toISOString(), rounds };
-  assert.equal(isChallengeEligible(okSession), true);
-  assert.equal(isChallengeEligible(shortSession), false);
-});
-
-test('簡易版時長邊界：剛好 10 分合格', () => {
-  const start = '2026-07-12T00:00:00.000Z';
-  const rounds = Array.from({ length: 6 }, (_, i) => ({
-    at: new Date(new Date(start).getTime() + (i + 1) * 100 * 1000).toISOString(),
-  }));
-  const okSession = { variant: 'easy', startedAt: start, endedAt: new Date(new Date(start).getTime() + 10 * 60000).toISOString(), rounds };
-  assert.equal(isChallengeEligible(okSession), true);
-});
-
-test('輪間中位間隔 < 90 秒 → 不合格（時長足夠但節奏太快）', () => {
-  const start = '2026-07-12T00:00:00.000Z';
-  // 12 輪，間隔 30 秒一輪（總時長仍可能被拉長到 20 分靠最後一輪，但中位間隔仍是 30 秒）
-  const rounds = Array.from({ length: 12 }, (_, i) => ({
-    at: new Date(new Date(start).getTime() + (i + 1) * 30 * 1000).toISOString(),
-  }));
-  const session = {
+  return {
     variant: 'full',
     startedAt: start,
-    endedAt: new Date(new Date(start).getTime() + 25 * 60000).toISOString(),
+    endedAt: new Date(new Date(start).getTime() + 13 * intervalSec * 1000).toISOString(),
     rounds,
+    ...extra,
   };
-  assert.equal(isChallengeEligible(session), false);
+}
+
+test('總時長不再影響：中位間隔 ≥60 秒即合格，總時長很短也一樣', () => {
+  // 12 輪 × 60 秒 = 總長僅 12 分（舊制 20 分門檻不到），2.0 照樣合格
+  assert.equal(isChallengeEligible(paceSession(60)), true);
 });
 
-test('輪間中位間隔剛好 90 秒 → 合格', () => {
-  const start = '2026-07-12T00:00:00.000Z';
-  const rounds = Array.from({ length: 12 }, (_, i) => ({
-    at: new Date(new Date(start).getTime() + (i + 1) * 90 * 1000).toISOString(),
-  }));
-  const session = {
-    variant: 'full',
-    startedAt: start,
-    endedAt: new Date(new Date(start).getTime() + 25 * 60000).toISOString(),
-    rounds,
-  };
-  assert.equal(isChallengeEligible(session), true);
+test('中位間隔剛好 60 秒 → auto 合格', () => {
+  assert.equal(isChallengeEligible(paceSession(60)), true);
+});
+
+test('中位間隔 30–60 秒的詢問區：未回答不合格、confirmed=true 合格、false 不合格', () => {
+  assert.equal(isChallengeEligible(paceSession(45)), false);
+  assert.equal(isChallengeEligible(paceSession(45, { paceConfirmed: true })), true);
+  assert.equal(isChallengeEligible(paceSession(45, { paceConfirmed: false })), false);
+});
+
+test('中位間隔 < 30 秒 → 不合格，paceConfirmed 也救不回來', () => {
+  assert.equal(isChallengeEligible(paceSession(20)), false);
+  assert.equal(isChallengeEligible(paceSession(20, { paceConfirmed: true })), false);
 });
 
 test('没有任何輪次 → 不合格', () => {
   assert.equal(isChallengeEligible({ variant: 'full', startedAt: '2026-07-12T00:00:00.000Z', endedAt: '2026-07-12T00:30:00.000Z', rounds: [] }), false);
+});
+
+console.log('evaluateStars()');
+
+// 三星制（M7 第三包）：★1=passRule、★2=每關簽名規則、★3=每條 minPct+10pp。
+// evaluateStars 是純函式不看 eligibility，rounds 依 at 排序後判定。
+function starsSession(mode, roundSpecs) {
+  let t = new Date('2026-07-12T00:00:00.000Z').getTime();
+  const rounds = roundSpecs.map(([spot, type, makes]) => {
+    t += 90 * 1000;
+    return { spot, type, attempts: 10, makes, at: new Date(t).toISOString() };
+  });
+  return { variant: 'full', mode, rounds };
+}
+
+const dirkMenu = { id: 'dirk', challenge: true, passRule: [{ type: '2pt', minPct: 55 }] };
+
+test('★1/★3：達門檻拿解鎖星，門檻 +10pp 才拿高標星', () => {
+  const midOnly = starsSession('dirk', [['mid_top', '2pt', 6], ['mid_lw', '2pt', 6], ['mid_rw', '2pt', 6]]); // 60%
+  const r1 = evaluateStars(dirkMenu, midOnly);
+  assert.equal(r1.unlock, true);
+  assert.equal(r1.high, false); // 60% < 65%
+  const hot = starsSession('dirk', [['mid_top', '2pt', 7], ['mid_lw', '2pt', 7], ['mid_rw', '2pt', 6]]); // ~66.7%
+  assert.equal(evaluateStars(dirkMenu, hot).high, true);
+});
+
+test('★2 dirk 金雞獨立：任一 2 分輪單輪 8 進', () => {
+  const withEight = starsSession('dirk', [['mid_top', '2pt', 8], ['mid_lw', '2pt', 3]]);
+  const without = starsSession('dirk', [['mid_top', '2pt', 7], ['mid_lw', '2pt', 7]]);
+  assert.equal(evaluateStars(dirkMenu, withEight).signature, true);
+  assert.equal(evaluateStars(dirkMenu, without).signature, false);
+});
+
+test('★2 lin_college 課表收官：最後一輪必須是罰球且 ≥7 進', () => {
+  const menu = { id: 'lin_college', challenge: true, passRule: [{ type: '2pt', minPct: 45 }] };
+  const ok = starsSession('lin_college', [['paint', '2pt', 5], ['ft', 'ft', 7]]);
+  const lastNotFt = starsSession('lin_college', [['ft', 'ft', 7], ['paint', '2pt', 5]]);
+  assert.equal(evaluateStars(menu, ok).signature, true);
+  assert.equal(evaluateStars(menu, lastNotFt).signature, false);
+});
+
+test('★2 curry 雙修＝門檻 +5pp：深 3 剛好 40% 成立（門檻 35+5，不是 45）', () => {
+  const menu = { id: 'curry', challenge: true, passRule: [{ type: '3pt', minPct: 45 }, { type: 'deep3', minPct: 35 }] };
+  const s = starsSession('curry', [['3pt_top', '3pt', 5], ['deep_top', 'deep3', 4]]); // 3pt 50%、deep3 40%
+  assert.equal(evaluateStars(menu, s).signature, true);
+});
+
+test('非挑戰菜單或空 rounds → 三星全 false', () => {
+  const none = { unlock: false, signature: false, high: false };
+  assert.deepEqual(evaluateStars({ id: 'free', challenge: false, passRule: null }, starsSession('free', [['paint', '2pt', 9]])), none);
+  assert.deepEqual(evaluateStars(dirkMenu, { variant: 'full', mode: 'dirk', rounds: [] }), none);
 });
 
 console.log('pctGapToShots()');
