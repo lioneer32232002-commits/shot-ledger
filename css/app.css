@@ -2870,25 +2870,104 @@ a {
 /* 設定分頁：徽章 / 關於                                                   */
 /* ---------------------------------------------------------------------- */
 
-.badge-chips {
+/* 徽章牆（進度獎章）：3 欄圓形獎章＋進度環圈，未獲得的看得到離下一顆多近；
+   全破階梯（--capstone）跨滿整列當壓軸橫幅。 */
+.badge-wall {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-4) var(--space-2);
+}
+
+.badge-medal {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  text-align: center;
+}
+
+.badge-medal__disc {
+  position: relative;
+  width: 68px;
+  height: 68px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 徽面暖光：surface → accent-tint 的放射漸層，深淺色主題都由 tokens 帶動 */
+.badge-medal--earned .badge-medal__disc {
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 38%, var(--color-surface), var(--color-accent-tint));
+}
+
+.badge-medal__ring {
+  position: absolute;
+  inset: 0;
+}
+
+.badge-medal__ring-track {
+  stroke: var(--color-border);
+}
+
+.badge-medal__ring-fill {
+  stroke: var(--color-accent);
+  stroke-linecap: round;
+}
+
+.badge-medal__icon {
+  width: 30px;
+  height: 30px;
+  color: var(--color-accent);
+}
+
+.badge-medal--locked .badge-medal__icon {
+  color: var(--color-text-faint);
+}
+
+.badge-medal__name {
+  font-size: var(--text-xs);
+  font-weight: 800;
+  color: var(--color-text);
+  line-height: 1.4;
+}
+
+.badge-medal--locked .badge-medal__name {
+  font-weight: 700;
+  color: var(--color-text-faint);
+}
+
+.badge-medal__meta {
+  font-size: 11px;
+  color: var(--color-text-faint);
+  margin-top: -4px;
+}
+
+.badge-medal__meta--earned {
+  color: var(--color-accent-dark);
+  font-weight: 700;
+}
+
+.badge-medal--capstone {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: var(--space-4);
+  text-align: left;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+}
+
+.badge-medal--capstone .badge-medal__text {
+  display: flex;
+  flex-direction: column;
   gap: var(--space-2);
 }
 
-.badge-chip {
-  font-size: var(--text-xs);
-  font-weight: 700;
-  color: var(--color-accent-dark);
-  background: var(--color-accent-tint);
-  padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-full);
-}
-
-/* 未獲得徽章的灰剪影：看得到有什麼可追，但不搶已獲得的風采 */
-.badge-chip--locked {
-  color: var(--color-text-faint);
-  background: var(--color-surface-sunken);
+.badge-medal--capstone .badge-medal__name {
+  font-size: var(--text-sm);
 }
 
 .about-card {
