@@ -413,6 +413,11 @@ export function typeAvgAllTime(sessions, type, excludeSessionId) {
   return pct(mk, att);
 }
 
+/** 千分位格式（原本住在 session.js，徽章模組也要用才搬來純函式這層）。 */
+export function formatThousands(n) {
+  return String(Number(n) || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
 /** 全期累計出手數（投量徽章用）。 */
 export function totalAttempts(sessions) {
   return (sessions || []).reduce(

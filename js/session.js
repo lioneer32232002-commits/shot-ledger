@@ -9,22 +9,17 @@ import {
   aggregate, pct, recentTypeAvg, todaySummary,
   roundCurve, earlyLateSplit, evaluatePassRule, sessionPct,
   isChallengeEligible, challengeIneligibleReason, paceAssessment, pctGapToShots, typeAvgAllTime,
-  equivalentTier, lifetimeTotals, weekAttempts, challengeForecast,
+  equivalentTier, lifetimeTotals, weekAttempts, challengeForecast, formatThousands,
 } from './stats.js';
+import { BADGE_LABEL, badgeStripHtml } from './badges.js';
 import { openShareSheet } from './sharecard.js';
 import { pageBannerHtml } from './pagebanner.js';
 
+// 兩個工具本體已外移（stats.js／badges.js），轉出口讓既有 import 不用改。
+export { formatThousands, BADGE_LABEL };
+
 const TYPE_OPTIONS = ['2pt', '3pt', 'deep3', 'ft', 'layup'];
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
-export const BADGE_LABEL = {
-  ladder_complete: '全破挑戰階梯',
-  streak_3: '連續練習 3 天',
-  streak_7: '連續練習 7 天',
-  streak_30: '連續練習 30 天',
-  volume_1000: '累計 1,000 顆',
-  volume_5000: '累計 5,000 顆',
-  volume_10000: '累計 10,000 顆',
-};
 
 let root = null;
 let state = null;
@@ -134,9 +129,6 @@ function formatShortDate(iso) {
 }
 
 /** 千分位逗號（生涯累計數用）。 */
-export function formatThousands(n) {
-  return String(Number(n) || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-}
 
 function formatElapsed(startedAt) {
   const ms = Date.now() - new Date(startedAt).getTime();
@@ -591,6 +583,7 @@ function renderHome() {
       ${quickRestartHtml}
       ${ladderHtml}
       ${summaryHtml}
+      ${badgeStripHtml(state)}
       <section class="secondary-list">
         <h2 class="section-title">其他模式</h2>
         <div class="secondary-cards">${secondaryHtml}</div>
@@ -608,6 +601,9 @@ function renderHome() {
   root.querySelectorAll('[data-start-free]').forEach((el) => {
     el.addEventListener('click', () => startSession('free', null));
   });
+  // 成就條點擊 → 統計頁的徽章牆
+  const badgeStrip = root.querySelector('[data-action="open-badges"]');
+  if (badgeStrip) badgeStrip.addEventListener('click', () => { window.location.hash = '#/stats'; });
   const quickRestartBtn = root.querySelector('[data-action="quick-restart"]');
   if (quickRestartBtn) {
     quickRestartBtn.addEventListener('click', () => {

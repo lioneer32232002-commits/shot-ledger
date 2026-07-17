@@ -9,6 +9,7 @@ import {
   lifetimeTotals,
 } from './stats.js';
 import { formatThousands } from './session.js';
+import { badgeWallHtml } from './badges.js';
 import { pageBannerHtml } from './pagebanner.js';
 
 const PERIODS = [
@@ -76,6 +77,7 @@ function render() {
     <div class="page page--stats">
       ${pageBannerHtml("stats")}
       ${renderLifetimeCard()}
+      ${renderBadgeSection(now)}
       ${renderWeeklyGoalCard(now)}
       ${renderPeriodSwitch()}
       ${renderTrendSection(now, period)}
@@ -91,6 +93,19 @@ function render() {
 
   const scrollEl = root.querySelector('[data-role="heat-cal-scroll"]');
   if (scrollEl) scrollEl.scrollLeft = scrollEl.scrollWidth;
+}
+
+// ---------------------------------------------------------------------------
+// 1.2 徽章牆（自設定頁搬來：成就跟生涯累計同性質，設定頁只留資料／主題／備份）
+// ---------------------------------------------------------------------------
+
+function renderBadgeSection(now) {
+  return `
+    <section class="stats-block">
+      <h2 class="section-title">徽章</h2>
+      ${badgeWallHtml(state, now)}
+    </section>
+  `;
 }
 
 // ---------------------------------------------------------------------------

@@ -8,58 +8,12 @@ import * as statsPage from './statspage.js';
 import * as historyPage from './history.js';
 import * as homePage from './home.js';
 import { MENUS, ladderMenus } from './menus.js';
-import { BADGE_LABEL, formatThousands } from './session.js';
-import { lifetimeTotals, pct, streakDays, totalAttempts } from './stats.js';
+import { formatThousands } from './session.js';
+import { lifetimeTotals, pct } from './stats.js';
 import { pageBannerHtml } from './pagebanner.js';
 
 const VALID_TABS = ['train', 'stats', 'history', 'settings'];
 
-// 設定頁徽章牆：全部 7 顆依成就順序排成圓形進度獎章（2026-07-17 比稿 B 案定案），
-// 未獲得的顯示灰剪影＋進度環圈，讓人看得到「離下一顆多近」。
-// capstone＝全破階梯，跨滿整列當壓軸。
-const BADGE_DEFS = [
-  { id: 'streak_3', icon: 'flame', kind: 'streak', target: 3 },
-  { id: 'streak_7', icon: 'flame', kind: 'streak', target: 7 },
-  { id: 'streak_30', icon: 'flame', kind: 'streak', target: 30 },
-  { id: 'volume_1000', icon: 'ball', kind: 'volume', target: 1000 },
-  { id: 'volume_5000', icon: 'ball', kind: 'volume', target: 5000 },
-  { id: 'volume_10000', icon: 'ball', kind: 'volume', target: 10000 },
-  { id: 'ladder_complete', icon: 'trophy', kind: 'ladder', target: null, capstone: true },
-];
-
-// 線條圖示（火焰＝連續、籃球＝投量、獎盃＝全破），stroke 走 currentColor 讓
-// 獲得／未獲得直接由文字色帶動，深淺色主題都成立。
-const BADGE_ICON = {
-  flame: '<svg class="badge-medal__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>',
-  ball: '<svg class="badge-medal__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3v18"/><path d="M5.4 5.6c3.6 3.6 3.6 9.2 0 12.8M18.6 5.6c-3.6 3.6-3.6 9.2 0 12.8"/></svg>',
-  trophy: '<svg class="badge-medal__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>',
-};
-
-// 進度環圈半徑 31（獎章 68px 內縮 3px 描邊），圓周 2πr ≈ 194.8。
-const MEDAL_RING_C = 194.8;
-
-function badgeMedalHtml({ label, icon, earned, progress, meta, capstone }) {
-  const clamped = earned ? 1 : Math.max(0, Math.min(progress || 0, 1));
-  const offset = (MEDAL_RING_C * (1 - clamped)).toFixed(1);
-  const cls = ['badge-medal', earned ? 'badge-medal--earned' : 'badge-medal--locked'];
-  if (capstone) cls.push('badge-medal--capstone');
-  const discHtml = `
-    <div class="badge-medal__disc">
-      <svg class="badge-medal__ring" viewBox="0 0 68 68" aria-hidden="true">
-        <circle class="badge-medal__ring-track" cx="34" cy="34" r="31" fill="none" stroke-width="3"/>
-        <circle class="badge-medal__ring-fill" cx="34" cy="34" r="31" fill="none" stroke-width="3"
-          stroke-dasharray="${MEDAL_RING_C}" stroke-dashoffset="${offset}" transform="rotate(-90 34 34)"/>
-      </svg>
-      ${BADGE_ICON[icon] || BADGE_ICON.trophy}
-    </div>
-  `;
-  const textHtml = `
-    <p class="badge-medal__name">${label}</p>
-    <p class="badge-medal__meta${earned ? ' badge-medal__meta--earned' : ''}">${meta}</p>
-  `;
-  // capstone 是橫幅：獎章在左、文字直排在右
-  return `<div class="${cls.join(' ')}">${discHtml}${capstone ? `<div class="badge-medal__text">${textHtml}</div>` : textHtml}</div>`;
-}
 const HOME_ROUTE = 'home'; // 首頁：有自己的路由但不佔 tab bar 格子（SPEC_M6 §1）
 
 // 聯絡版主：純 mailto，不接後端也不收使用者資料。主旨先填好，回信時比較好歸類。
@@ -211,18 +165,6 @@ function unlockedLadderCount(state) {
   return { unlocked, total: ladder.length };
 }
 
-// 階梯已通過關數（全破徽章的進度）：通過的定義＝下一關已解鎖、末關看
-// ladder_complete 徽章，與 session.js 階梯頁的 passedIds 同一套判定。
-function passedLadderCount(state) {
-  const ladder = ladderMenus();
-  const passed = ladder.filter((m, i) => {
-    const next = ladder[i + 1];
-    if (next) return state.progress.unlocked.includes(next.id);
-    return state.progress.badges.includes('ladder_complete');
-  }).length;
-  return { passed, total: ladder.length };
-}
-
 /** 三星制總覽：total 動態算（關卡數 × 3），不寫死數字（階梯關數之後還可能再變）。 */
 function starsCount(state) {
   const ladder = ladderMenus();
@@ -252,39 +194,10 @@ function renderSettings() {
   const { earned: starsEarned, total: starsTotal } = starsCount(settingsState);
   const lifetime = lifetimeTotals(settingsState.sessions);
   const lifetimePct = pct(lifetime.mk, lifetime.att);
-  const badges = settingsState.progress.badges;
   const reminderHtml =
     unbacked > 5
       ? `<p class="settings-reminder">已累積 ${unbacked} 次練習尚未備份，建議匯出一份 JSON 存起來。</p>`
       : '';
-
-  // 徽章牆：固定依成就順序（不把已獲得挑到前面，位置固定才有「集滿一面牆」的感覺），
-  // 未獲得的用進度環圈顯示離下一顆多近。
-  const streak = streakDays(settingsState.sessions, new Date());
-  const totalShots = totalAttempts(settingsState.sessions);
-  const ladderProgress = passedLadderCount(settingsState);
-  const medalData = (def) => {
-    const earned = badges.includes(def.id);
-    if (def.kind === 'streak') {
-      return { earned, progress: streak / def.target, meta: earned ? '已獲得' : `${Math.min(streak, def.target)} / ${def.target} 天` };
-    }
-    if (def.kind === 'volume') {
-      return { earned, progress: totalShots / def.target, meta: earned ? '已獲得' : `${formatThousands(Math.min(totalShots, def.target))} / ${formatThousands(def.target)}` };
-    }
-    return {
-      earned,
-      progress: ladderProgress.passed / ladderProgress.total,
-      meta: earned ? '已獲得' : `已通過 ${ladderProgress.passed} / ${ladderProgress.total} 關`,
-    };
-  };
-  const medals = BADGE_DEFS.map((def) =>
-    badgeMedalHtml({ label: BADGE_LABEL[def.id] || def.id, icon: def.icon, capstone: def.capstone, ...medalData(def) })
-  );
-  // 防禦：不在清單裡的既有徽章照樣顯示（migration 或舊資料）
-  const extraMedals = badges
-    .filter((b) => !BADGE_DEFS.some((def) => def.id === b))
-    .map((b) => badgeMedalHtml({ label: BADGE_LABEL[b] || b, icon: 'trophy', earned: true, meta: '已獲得' }));
-  const badgesHtml = `<div class="badge-wall">${medals.join('')}${extraMedals.join('')}</div>`;
 
   const theme = settingsState.settings.theme;
   const themeOptions = [
@@ -325,11 +238,6 @@ function renderSettings() {
         <p class="settings-card__row">生涯累計：<strong class="nowrap">${formatThousands(lifetime.att)} 投</strong> / <strong class="nowrap">${formatThousands(lifetime.mk)} 中</strong>${lifetimePct === null ? '' : `<span class="nowrap">（${lifetimePct}%）</span>`}</p>
         <p class="settings-card__row nowrap">上次備份：${formatBackupTime(settingsState.settings.lastBackupAt)}</p>
         ${reminderHtml}
-      </section>
-
-      <section class="settings-card">
-        <h2 class="settings-card__title">徽章</h2>
-        ${badgesHtml}
       </section>
 
       <section class="settings-card">
