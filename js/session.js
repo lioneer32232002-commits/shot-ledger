@@ -385,7 +385,7 @@ function renderLadderRow(ladder, unlockedIds, passedIds, currentId) {
     if (passed) cls.push('is-passed');
     if (isCurrent) cls.push('is-current');
     // 小格裡不塞整句 passDesc（雙條件＋括號註記會爆版）：直接由 passRule 生成
-    // 一條件一行的精簡版；完整說明仍在變體 sheet 的 sheet__sub。
+    // 一條件一行的精簡版；完整說明仍在變體 sheet 的「三星目標」卡。
     const condHtml = (m.passRule || [])
       .map((r) => `<span class="nowrap">${typeLabel(r.type)} ≥${r.minPct}%</span>`)
       .join('');
@@ -432,6 +432,7 @@ function renderVariantSheetHtml(menu) {
   // 沒有變體的菜單（free）也走這個面板：先講清楚這個模式在做什麼，再給一顆「開始練習」。
   // 從首頁入口直接 startSession 會讓人一頭撞進記錄畫面，不知道自己選到了什麼。
   const hasVariants = Boolean(menu.easy);
+  // 單一選項（挑戰、自由練習）要加 --solo 撐滿整列，否則會孤零零卡在雙欄 grid 的左格。
   const optionsHtml = hasVariants
     ? `
         <button class="variant-option" data-variant="easy">
@@ -445,28 +446,40 @@ function renderVariantSheetHtml(menu) {
       `
     : isChallenge
     ? `
-        <button class="variant-option" data-variant="full">
+        <button class="variant-option variant-option--solo" data-variant="full">
           <span class="variant-option__name">開始挑戰</span>
           <span class="variant-option__meta">約 ${menu.est.full} 分・${menu.full.length} 輪・${menu.full.length * 10} 球</span>
         </button>
       `
     : `
-        <button class="variant-option" data-variant="">
+        <button class="variant-option variant-option--solo" data-variant="">
           <span class="variant-option__name">開始練習</span>
           <span class="variant-option__meta">不限輪數・隨時可結束</span>
         </button>
       `;
 
+  // 三星說明收進與「菜單依據」「誠實機制」同一套眉標卡，置中散行會跟置左的
+  // 說明卡打架（2026-07-17 排版比稿定案：置中 hero＋卡片資訊區）。
   const starsSheetHtml = isChallenge && menu.signature
     ? `
-        <div class="sheet__star-lines">
-          <p class="sheet__sub">★ 過關門檻：${menu.passDesc}</p>
-          <p class="sheet__sub">★★ ${menu.signature.label}：${menu.signature.desc}</p>
-          <p class="sheet__sub">★★★ 高標：${(menu.passRule || []).map((r) => `${typeLabel(r.type)} ≥${r.minPct + 10}%`).join(' 且')}</p>
+        <div class="sheet-note">
+          <p class="sheet-note__title">三星目標</p>
+          <div class="sheet-goals">
+            <div class="sheet-goals__row"><span class="sheet-goals__stars">★</span><span>過關門檻：${menu.passDesc}</span></div>
+            <div class="sheet-goals__row"><span class="sheet-goals__stars">★★</span><span>${menu.signature.label}：${menu.signature.desc}</span></div>
+            <div class="sheet-goals__row"><span class="sheet-goals__stars">★★★</span><span>高標：${(menu.passRule || []).map((r) => `${typeLabel(r.type)} ≥${r.minPct + 10}%`).join(' 且')}</span></div>
+          </div>
         </div>
       `
     : isChallenge
-    ? `<p class="sheet__sub">過關門檻：${menu.passDesc}</p>`
+    ? `
+        <div class="sheet-note">
+          <p class="sheet-note__title">過關門檻</p>
+          <div class="sheet-goals">
+            <div class="sheet-goals__row"><span class="sheet-goals__stars">★</span><span>${menu.passDesc}</span></div>
+          </div>
+        </div>
+      `
     : '';
 
   return `

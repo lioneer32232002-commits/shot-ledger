@@ -1112,26 +1112,6 @@ a {
   margin-top: calc(var(--space-2) * -1);
 }
 
-/* 挑戰菜單同時有 focus 與 sub 時，sub 是「解鎖條件」，要跟說明再拉開一點層次 */
-.sheet__focus + .sheet__sub {
-  margin-top: calc(var(--space-3) * -1);
-  color: var(--color-text-faint);
-}
-
-/* 三星說明區（★ 過關門檻／★★ 簽名星／★★★ 高標）：取代舊版單行 sub，
-   三行擠在一起、字級與 .sheet__sub 相同，維持 sheet 素淨的小字調性。 */
-.sheet__star-lines {
-  margin-top: calc(var(--space-3) * -1);
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.sheet__star-lines .sheet__sub {
-  margin-top: 0;
-  color: var(--color-text-faint);
-}
-
 /* 列式排版：每列 5 顆、末列不足 5 顆置中，同 .makes-grid 邏輯（SPEC M4.3 §1）。 */
 .stepper-grid {
   display: flex;
@@ -2315,6 +2295,12 @@ a {
   white-space: nowrap;
 }
 
+/* 單一選項（挑戰的「開始挑戰」、自由練習）撐滿整列；雙欄 grid 只留給簡易／完整並排。 */
+.variant-option--solo {
+  grid-column: 1 / -1;
+  min-height: 92px;
+}
+
 /* 變體 sheet 的說明區：整段散文改成小卡結構（眉標＋內文），質感與可掃讀性
    都比三段連續小字好（使用者回饋：說明字太多、不好讀）。 */
 .sheet-note {
@@ -2367,6 +2353,29 @@ a {
   font-weight: 700;
   color: var(--color-accent);
   white-space: nowrap;
+}
+
+/* 「三星目標」卡的星等列（.star-row 已被三星制星列用走，這裡另開 sheet-goals）：
+   星號欄固定寬，三行內文左緣才會對齊（★／★★／★★★ 寬度不同，行內排版會參差）。 */
+.sheet-goals {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sheet-goals__row {
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  gap: 6px;
+  font-size: var(--text-xs);
+  line-height: 1.7;
+  color: var(--color-text-muted);
+}
+
+.sheet-goals__stars {
+  color: var(--color-accent);
+  font-weight: 700;
+  letter-spacing: 1px;
 }
 
 .sheet__honesty-line {
