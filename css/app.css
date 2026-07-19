@@ -725,11 +725,25 @@ a {
   }
 }
 
-/* heat 模式：點擊選中的點加細白描邊，兩套主題都用固定白色（--color-text-on-accent
-   兩套主題同值），才能在各種熱區色底上都看得清楚 */
+/* 點擊／觸控不畫 UA 的黑色 focus 矩形（SVG g 有 tabindex，Chromium 連滑鼠
+   點擊都會畫）；鍵盤操作維持看得見的 focus 框（無障礙）。 */
+.court-spot:focus {
+  outline: none;
+}
+
+.court-spot:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* heat 模式：環底圓平常不描邊（stroke 色由 court.js 內聯成該點熱度色），
+   點擊選中時加寬成同色光圈，兩套主題都清楚 */
+.court-spot--heat.is-clickable .spot-dot {
+  stroke-width: 0;
+}
+
 .court-spot--heat.is-clickable.is-selected .spot-dot {
-  stroke: var(--color-text-on-accent);
-  stroke-width: 3px;
+  stroke-width: 4px;
 }
 
 /* 15px→26px：SVG 座標，手機實際約 12px 太小看不清，放大到位（SPEC M4.2 §4）。
@@ -754,15 +768,42 @@ a {
   display: none;
 }
 
-/* 熱區命中率字貫穿圓點（SPEC M4.3 §2）：字置中在點上，刻意允許左右突破圓的
-   邊緣做出「貫穿感」，不再用縮字級（--tight）閃避撐爆點的圓框。SVG viewBox
-   750 寬，手機上整顆球場常縮到約 340px（比例 0.46），34px 才能讓實際顯示
-   字高（約 15.5px）留在可讀範圍。描邊全部移除（SPEC M4.4 §3，使用者指定嘗試
-   無描邊版）：純白字直接壓在點上，與分享卡 drawMiniCourt 同步。 */
+/* 熱區「填色進度環」（取代舊的白字貫穿實心圓點）：環的長度＝命中率、
+   環內鋪熱度色淡底、數字用熱度色（不含 %，完整數據在點擊後的資訊列）。
+   顏色都由 court.js 依熱度內聯指定，這裡只管幾何與透明度。
+   SVG viewBox 750 寬，手機上球場約縮到 0.46 倍，27px 字實際約 12.5px，
+   數字純兩位數＋高對比色字仍可讀；與分享卡 drawMiniCourt 同步。 */
 .spot-heat-pct {
-  font-size: 34px;
+  font-size: 27px;
   font-weight: 800;
-  fill: #fff;
+  pointer-events: none;
+}
+
+/* 「100」三位數縮一級才住得進環內 */
+.spot-heat-pct--tight {
+  font-size: 23px;
+}
+
+/* 環內熱度色淡底 */
+.spot-ring-tint {
+  opacity: 0.14;
+  pointer-events: none;
+}
+
+/* 進度環軌道（未達成的部分）：淡出的中性環 */
+.spot-ring-track {
+  fill: none;
+  stroke: var(--color-border);
+  stroke-width: 8;
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* 進度弧：長度＝命中率（stroke-dasharray 由 court.js 內聯），圓頭收尾 */
+.spot-ring-arc {
+  fill: none;
+  stroke-width: 8;
+  stroke-linecap: round;
   pointer-events: none;
 }
 
