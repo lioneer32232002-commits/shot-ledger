@@ -114,8 +114,10 @@ export function renderCourt(container, opts) {
         // 點內只放命中率一行（大、粗）；mk/att 移到點擊後的 .court-info 資訊列。
         // 字級放大到貫穿圓點（SPEC M4.3 §2），允許左右突破圓的邊緣，不再需要
         // 「100%」縮字級的 --tight 機制——字可以超出圓，不用縮。
+        // 描邊用「與圓點同色」：點內同色疊同色隱形，突破圓緣的白字自帶點色
+        // 暈底，淺色背景上才讀得清（純白無描邊版在淺底上會消失）。
         const pctText = `${p}%`;
-        innerText = `<text class="spot-heat-pct" x="${spot.cx}" y="${spot.cy}" text-anchor="middle" dominant-baseline="central">${pctText}</text>`;
+        innerText = `<text class="spot-heat-pct" x="${spot.cx}" y="${spot.cy}" text-anchor="middle" dominant-baseline="central" style="stroke:${heatColor(p)}">${pctText}</text>`;
         heatDataAttrs = ` data-mk="${data.mk}" data-att="${data.att}" data-pct="${p}"`;
         ariaLabel = `${spot.label}　${data.mk}/${data.att} 投中・命中率 ${p}%`;
       }

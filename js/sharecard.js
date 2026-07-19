@@ -259,11 +259,15 @@ function drawMiniCourt(ctx, heatSpots, ox, oy, scale, lineColor = COLORS.courtLi
     if (s.pct !== null) {
       // 24→34（SVG 座標，SPEC M4.4 §3）：與 App 全期熱區字（court.js .spot-heat-pct
       // font-size 34px／750 寬 viewBox＝球場寬 4.5%）同一相對比例，卡上原本 24
-      // 只有 3.2%，偏小的根源。描邊全部移除（使用者指定嘗試無描邊版，與 App
-      // 端 .spot-heat-pct 同步拿掉 stroke／paint-order）：純白字直接壓在點上。
+      // 只有 3.2%，偏小的根源。描邊改回「與圓點同色」（與 App 端 .spot-heat-pct
+      // 同步）：白字突破圓緣落在淺色卡底上會消失，同色描邊在點內隱形、
+      // 點外形成點色暈底。
       const pctText = `${s.pct}%`;
       ctx.font = `800 ${34 * scale}px ${FONT_FAMILY}`;
       ctx.textBaseline = 'middle';
+      ctx.strokeStyle = heatTierColor(s.pct);
+      ctx.lineWidth = 10 * scale;
+      ctx.lineJoin = 'round';
       ctx.fillStyle = '#fff';
 
       // 左右底角（3pt_lc cx=45／3pt_rc cx=705）字放大後貫穿圓點，最寬情境「100%」
@@ -286,6 +290,8 @@ function drawMiniCourt(ctx, heatSpots, ox, oy, scale, lineColor = COLORS.courtLi
         drawX = centerX + 26 * scale;
       }
       ctx.textAlign = align;
+      // canvas 沒有 paint-order，先描邊再填色達到「描邊在字後面」的效果
+      ctx.strokeText(pctText, drawX, ty(s.cy));
       ctx.fillText(pctText, drawX, ty(s.cy));
     }
   });

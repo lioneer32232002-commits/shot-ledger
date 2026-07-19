@@ -757,12 +757,17 @@ a {
 /* 熱區命中率字貫穿圓點（SPEC M4.3 §2）：字置中在點上，刻意允許左右突破圓的
    邊緣做出「貫穿感」，不再用縮字級（--tight）閃避撐爆點的圓框。SVG viewBox
    750 寬，手機上整顆球場常縮到約 340px（比例 0.46），34px 才能讓實際顯示
-   字高（約 15.5px）留在可讀範圍。描邊全部移除（SPEC M4.4 §3，使用者指定嘗試
-   無描邊版）：純白字直接壓在點上，與分享卡 drawMiniCourt 同步。 */
+   字高（約 15.5px）留在可讀範圍。
+   描邊改回「與圓點同色」（stroke 色由 court.js 依熱度內聯指定）：無描邊版
+   白字突破圓緣落在淺色背景上會消失；同色描邊在點內隱形、點外形成點色暈底，
+   淺色底與深色模式都讀得清，與分享卡 drawMiniCourt 同步。 */
 .spot-heat-pct {
   font-size: 34px;
   font-weight: 800;
   fill: #fff;
+  paint-order: stroke;
+  stroke-width: 10px;
+  stroke-linejoin: round;
   pointer-events: none;
 }
 
