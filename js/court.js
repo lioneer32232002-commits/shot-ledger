@@ -83,6 +83,14 @@ function heatColor(p) {
   return "var(--color-heat-hot)";
 }
 
+// 填色進度環的幾何常數（SVG 座標）：環半徑／環粗／環底圓半徑（surface 色，
+// 蓋住底下球場線）。ft(290)/mid_top(350) 縱距 60，環底圓直徑 76 會小疊 16px，
+// 由 SPOTS 順序讓 ft 蓋在 mid_top 上緣，視覺可接受（與分享卡 drawMiniCourt 同步）。
+const RING_R = 33;
+const RING_SW = 8;
+const RING_BG_R = RING_R + RING_SW / 2 + 1; // 38
+const RING_CIRC = 2 * Math.PI * RING_R;
+
 /**
  * @param {HTMLElement} container
  * @param {Object} opts
@@ -111,22 +119,32 @@ export function renderCourt(container, opts) {
       const p = hasHeatData ? Math.round((data.mk / data.att) * 100) : null;
       fillStyle = ` style="fill:${heatColor(p)}"`;
       if (hasHeatData) {
-        // 點內只放命中率一行（大、粗）；mk/att 移到點擊後的 .court-info 資訊列。
-        // 字級放大到貫穿圓點（SPEC M4.3 §2），允許左右突破圓的邊緣，不再需要
-        // 「100%」縮字級的 --tight 機制——字可以超出圓，不用縮。
-        // 描邊用「與圓點同色」：點內同色疊同色隱形，突破圓緣的白字自帶點色
-        // 暈底，淺色背景上才讀得清（純白無描邊版在淺底上會消失）。
-        const pctText = `${p}%`;
-        innerText = `<text class="spot-heat-pct" x="${spot.cx}" y="${spot.cy}" text-anchor="middle" dominant-baseline="central" style="stroke:${heatColor(p)}">${pctText}</text>`;
+        // 填色進度環（使用者選定設計）：環的長度＝命中率、環內鋪熱度色淡底、
+        // 數字（不含 %）用熱度色。取代舊的「白字貫穿實心圓點」——白字超出
+        // 圓緣落在淺色背景上會消失，環＋色字則兩套主題都清楚。
+        // mk/att 與 % 符號移到點擊後的 .court-info 資訊列（機制不變）。
+        const color = heatColor(p);
+        const arcLen = (p / 100) * RING_CIRC;
+        // p=0 沒有弧可畫：round linecap 會把零長 dash 畫成一顆點，直接省略。
+        const arc = p > 0
+          ? `<circle class="spot-ring-arc" cx="${spot.cx}" cy="${spot.cy}" r="${RING_R}" style="stroke:${color};stroke-dasharray:${arcLen} ${RING_CIRC}" transform="rotate(-90 ${spot.cx} ${spot.cy})" />`
+          : "";
+        innerText = `
+          <circle class="spot-ring-tint" cx="${spot.cx}" cy="${spot.cy}" r="${RING_R - RING_SW / 2}" style="fill:${color}" />
+          <circle class="spot-ring-track" cx="${spot.cx}" cy="${spot.cy}" r="${RING_R}" />
+          ${arc}
+          <text class="spot-heat-pct${p === 100 ? " spot-heat-pct--tight" : ""}" x="${spot.cx}" y="${spot.cy}" text-anchor="middle" dominant-baseline="central" style="fill:${color}">${p}</text>`;
+        // 環底圓的 stroke 也用熱度色：平常 stroke-width 0 看不到，
+        // 點擊選中時由 CSS 加寬成同色光圈（取代舊的細白描邊）。
+        fillStyle = ` style="fill:var(--color-surface);stroke:${color}"`;
         heatDataAttrs = ` data-mk="${data.mk}" data-att="${data.att}" data-pct="${p}"`;
         ariaLabel = `${spot.label}　${data.mk}/${data.att} 投中・命中率 ${p}%`;
       }
     }
 
-    // 有出手資料的熱區點半徑回調至 26——字級放大後允許貫穿圓的邊緣，
-    // 點不用撐那麼大也讀得清（SPEC M4.3 §2）；沒資料的點縮到 8，
-    // 只當背景參考、降低噪音，也不可點。
-    const r = mode === "heat" ? (hasHeatData ? 26 : 8) : isSelected ? 18 : 14;
+    // 有出手資料的熱區點畫成進度環：r 是環底圓（surface 色），蓋住底下的
+    // 球場線讓環乾淨；沒資料的點縮到 8，只當背景參考、降低噪音，也不可點。
+    const r = mode === "heat" ? (hasHeatData ? RING_BG_R : 8) : isSelected ? 18 : 14;
     const classes = ["court-spot", `court-spot--${mode}`];
     if (isSelected) classes.push("is-selected");
     if (locked) classes.push("is-locked");
@@ -149,9 +167,10 @@ export function renderCourt(container, opts) {
     const tabIndex = isInteractivePick || isInteractiveHeat ? 0 : -1;
     const role = isInteractivePick || isInteractiveHeat ? "button" : "img";
     // hit circle 只給可點的點（pick 模式的可選點／heat 模式有資料的點），
-    // 無資料的縮小點不放大熱區判定範圍，避免誤觸。
+    // 無資料的縮小點不放大熱區判定範圍，避免誤觸。heat 模式跟著環底圓放大。
+    const hitR = isInteractiveHeat ? RING_BG_R : 22;
     const hitCircle = isInteractivePick || isInteractiveHeat
-      ? `<circle class="spot-hit" cx="${spot.cx}" cy="${spot.cy}" r="22" fill="transparent" />`
+      ? `<circle class="spot-hit" cx="${spot.cx}" cy="${spot.cy}" r="${hitR}" fill="transparent" />`
       : "";
 
     return `

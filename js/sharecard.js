@@ -247,53 +247,59 @@ function drawMiniCourt(ctx, heatSpots, ox, oy, scale, lineColor = COLORS.courtLi
   ctx.arc(tx(hoopX), ty(hoopY), 11.5 * scale, 0, Math.PI * 2);
   ctx.stroke();
 
-  // 出手點位：僅畫該節有出手的點，顏色同熱區三級；點內畫命中率%（canvas 版空間較小，只畫 %）。
-  // 呼應 court.js 熱區點的貫穿字（SPEC M4.3 §2→M4.4 §3）：允許超出點的圓邊，
-  // 純白 fillText、無描邊。
+  // 出手點位：僅畫該節有出手的點，「填色進度環」與 App 端 court.js 同步——
+  // 環的長度＝命中率、環內鋪熱度色淡底、數字（不含 %）用熱度色。
+  // 幾何同 court.js：環 r33／環粗 8／環底圓 r38（SVG 座標，乘 scale）。
+  const RING_R = 33 * scale;
+  const RING_SW = 8 * scale;
+  const RING_BG_R = RING_R + RING_SW / 2 + 1 * scale;
   heatSpots.forEach((s) => {
+    const cx = tx(s.cx);
+    const cy = ty(s.cy);
+    const color = heatTierColor(s.pct);
+
+    // 環底圓：近白底蓋住球場線，紙感版與照片版都當「晶片」浮在底上
     ctx.beginPath();
-    ctx.fillStyle = heatTierColor(s.pct);
-    ctx.arc(tx(s.cx), ty(s.cy), 26 * scale, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.94)';
+    ctx.arc(cx, cy, RING_BG_R, 0, Math.PI * 2);
     ctx.fill();
 
-    if (s.pct !== null) {
-      // 24→34（SVG 座標，SPEC M4.4 §3）：與 App 全期熱區字（court.js .spot-heat-pct
-      // font-size 34px／750 寬 viewBox＝球場寬 4.5%）同一相對比例，卡上原本 24
-      // 只有 3.2%，偏小的根源。描邊改回「與圓點同色」（與 App 端 .spot-heat-pct
-      // 同步）：白字突破圓緣落在淺色卡底上會消失，同色描邊在點內隱形、
-      // 點外形成點色暈底。
-      const pctText = `${s.pct}%`;
-      ctx.font = `800 ${34 * scale}px ${FONT_FAMILY}`;
-      ctx.textBaseline = 'middle';
-      ctx.strokeStyle = heatTierColor(s.pct);
-      ctx.lineWidth = 10 * scale;
-      ctx.lineJoin = 'round';
-      ctx.fillStyle = '#fff';
+    // 環內熱度色淡底
+    ctx.beginPath();
+    ctx.globalAlpha = 0.14;
+    ctx.fillStyle = color;
+    ctx.arc(cx, cy, RING_R - RING_SW / 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
 
-      // 左右底角（3pt_lc cx=45／3pt_rc cx=705）字放大後貫穿圓點，最寬情境「100%」
-      // 可能突破 viewBox 邊界；量寬度後若真的超出才把錨點從置中改成點緣
-      // left/right（往內收），其餘點離邊界夠遠，這個檢查天然不影響它們。EDGE_SAFETY
-      // 6px：實測「100%」在兩個底角置中時離邊界只剩約1.4px（幾乎貼邊、字型
-      // 渲染稍有差異就可能真的超出），加緩衝讓判斷提前觸發、留真正的安全距離。
-      const EDGE_SAFETY = 6;
-      const textW = ctx.measureText(pctText).width;
-      const centerX = tx(s.cx);
-      const leftEdge = tx(0);
-      const rightEdge = tx(750);
-      let drawX = centerX;
-      let align = 'center';
-      if (centerX - textW / 2 < leftEdge + EDGE_SAFETY) {
-        align = 'left';
-        drawX = centerX - 26 * scale;
-      } else if (centerX + textW / 2 > rightEdge - EDGE_SAFETY) {
-        align = 'right';
-        drawX = centerX + 26 * scale;
-      }
-      ctx.textAlign = align;
-      // canvas 沒有 paint-order，先描邊再填色達到「描邊在字後面」的效果
-      ctx.strokeText(pctText, drawX, ty(s.cy));
-      ctx.fillText(pctText, drawX, ty(s.cy));
+    // 環軌道（未達成部分）：淡出的中性環
+    ctx.beginPath();
+    ctx.strokeStyle = COLORS.courtLine;
+    ctx.globalAlpha = 0.45;
+    ctx.lineWidth = RING_SW;
+    ctx.arc(cx, cy, RING_R, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // 進度弧：12 點鐘起順時針、長度＝命中率、圓頭收尾
+    if (s.pct > 0) {
+      ctx.beginPath();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = RING_SW;
+      ctx.lineCap = 'round';
+      const start = -Math.PI / 2;
+      ctx.arc(cx, cy, RING_R, start, start + (s.pct / 100) * Math.PI * 2);
+      ctx.stroke();
+      ctx.lineCap = 'butt';
     }
+
+    // 數字：熱度色、「100」縮一級（同 App 端 .spot-heat-pct--tight）
+    const fs = (s.pct === 100 ? 23 : 27) * scale;
+    ctx.font = `800 ${fs}px ${FONT_FAMILY}`;
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = color;
+    ctx.fillText(`${s.pct}`, cx, cy);
   });
 
   // 還原預設對齊方式，避免影響 drawCard 後續段落的文字繪製
