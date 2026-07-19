@@ -903,8 +903,16 @@ a {
 }
 
 /* 圓形數字鈕，比照球的意象；窄螢幕被 flex 壓縮時用 aspect-ratio 鎖正圓
-   （不然一排 6 顆會被壓成橢圓），觸控目標維持 ≥44px。 */
+   （不然一排 6 顆會被壓成橢圓），觸控目標維持 ≥44px。
+   flex 置中＋清 UA padding＋nowrap：iOS 按鈕預設左右內距大，被壓到
+   min-width 時「10」會被擠成兩行、數字也不在圓心。 */
 .makes-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
+  white-space: nowrap;
   width: 48px;
   height: auto;
   aspect-ratio: 1;
@@ -1125,8 +1133,15 @@ a {
   gap: var(--space-2);
 }
 
-/* 圓形數字鈕（比照 .makes-btn／.seq-ball），被壓縮時同樣鎖正圓 */
+/* 圓形數字鈕（比照 .makes-btn／.seq-ball），被壓縮時同樣鎖正圓；
+   同樣 flex 置中＋清 UA padding＋nowrap，避免兩位數換行、數字偏心 */
 .stepper-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
+  white-space: nowrap;
   width: 48px;
   height: auto;
   aspect-ratio: 1;
@@ -2434,6 +2449,12 @@ a {
 }
 
 .seq-ball {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
+  white-space: nowrap;
   width: 48px;
   height: 48px;
   min-width: 48px;
