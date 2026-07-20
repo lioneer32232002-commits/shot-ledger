@@ -179,15 +179,10 @@ function formatBackupTime(iso) {
 function renderSettings() {
   if (!settingsRoot) return;
   const { sessionCount, roundCount } = countStats(settingsState);
-  const unbacked = store.unbackedUpCount(settingsState);
   const { unlocked, total } = unlockedLadderCount(settingsState);
   const { earned: starsEarned, total: starsTotal } = starsCount(settingsState);
   const lifetime = lifetimeTotals(settingsState.sessions);
   const lifetimePct = pct(lifetime.mk, lifetime.att);
-  const reminderHtml =
-    unbacked > 5
-      ? `<p class="settings-reminder">已累積 ${unbacked} 次練習尚未備份，建議匯出一份 JSON 存起來。</p>`
-      : '';
 
   const theme = settingsState.settings.theme;
   const themeOptions = [
@@ -227,7 +222,6 @@ function renderSettings() {
         <p class="settings-card__row">星星：<strong class="nowrap">${starsEarned} / ${starsTotal}</strong></p>
         <p class="settings-card__row">生涯累計：<strong class="nowrap">${formatThousands(lifetime.att)} 投</strong> / <strong class="nowrap">${formatThousands(lifetime.mk)} 中</strong>${lifetimePct === null ? '' : `<span class="nowrap">（${lifetimePct}%）</span>`}</p>
         <p class="settings-card__row nowrap">上次備份：${formatBackupTime(settingsState.settings.lastBackupAt)}</p>
-        ${reminderHtml}
       </section>
 
       <section class="settings-card">
@@ -241,12 +235,14 @@ function renderSettings() {
 
       <section class="settings-card">
         <h2 class="settings-card__title">備份與轉移</h2>
+        <p class="settings-storage-note">紀錄自動存在這台裝置的瀏覽器裡——關掉網頁、重開手機都還在，平常<strong>不需要手動存檔</strong>。只有清除瀏覽器的網站資料、或是換了裝置，紀錄才會不見；想搬家或多一層保險時，匯出 JSON 就能完整帶走。</p>
         <div class="settings-actions">
           <button class="btn btn--secondary" data-action="export-json">匯出 JSON</button>
           <button class="btn btn--secondary" data-action="export-csv">匯出 CSV</button>
           <button class="btn btn--secondary" data-action="import-json">匯入 JSON</button>
         </div>
         <input type="file" accept="application/json,.json" class="visually-hidden" data-role="import-input" />
+        ${storagePersisted === true ? `<p class="settings-card__row settings-persist"><span class="settings-persist__dot"></span>儲存空間已受瀏覽器保護，不會被自動回收</p>` : ''}
       </section>
 
       <section class="settings-card settings-card--danger">
@@ -366,6 +362,20 @@ function showSettingsMessage(msg) {
   box.textContent = msg;
   clearTimeout(showSettingsMessage._t);
   showSettingsMessage._t = setTimeout(() => box.remove(), 3000);
+}
+
+// ---------------------------------------------------------------------------
+// 持久儲存（best-effort，要求瀏覽器別在裝置空間吃緊時自動清掉這個來源的資料）
+// ---------------------------------------------------------------------------
+
+let storagePersisted = null; // null=未知、true/false=已確認
+if (navigator.storage?.persisted) {
+  navigator.storage
+    .persisted()
+    .then(async (ok) => {
+      storagePersisted = ok || (await navigator.storage.persist());
+    })
+    .catch(() => {});
 }
 
 // ---------------------------------------------------------------------------

@@ -1500,6 +1500,27 @@ export function renderSessionSummary(container, session, allSessions, opts = {})
   const challengeHtml = renderChallengeSection(menu, session, justFinished, cardState);
   const equivalentHtml = renderEquivalentTierSection(menu, session);
 
+  // 里程碑備份小卡（SPEC_M9 包 C）：只在練球結束頁（有 onDone）出現，紀錄分頁節詳情不出卡。
+  const unbackedCount = cardState ? store.unbackedUpCount(cardState) : 0;
+  const nudgeBase = cardState ? cardState.settings.backupNudgeBase : null;
+  const showBackupNudge =
+    Boolean(onDone) && unbackedCount >= 30 && (nudgeBase == null || unbackedCount >= nudgeBase + 30);
+  const backupNudgeHtml = showBackupNudge
+    ? `
+      <div class="backup-nudge" data-role="backup-nudge">
+        <div class="backup-nudge__row">
+          <span class="backup-nudge__num">${unbackedCount}</span>
+          <span class="backup-nudge__text">
+            <p class="backup-nudge__title">次練習還沒備份</p>
+            <p class="backup-nudge__sub">匯出 JSON，換手機也帶得走</p>
+          </span>
+          <button class="btn btn--secondary backup-nudge__btn" data-summary-action="backup-export">匯出</button>
+        </div>
+        <div class="backup-nudge__dismiss"><button data-summary-action="backup-dismiss">先不用，下次再說</button></div>
+      </div>
+    `
+    : '';
+
   container.innerHTML = `
     <div class="summary">
       <header class="summary__header">
@@ -1527,6 +1548,8 @@ export function renderSessionSummary(container, session, allSessions, opts = {})
       ${challengeHtml}
       ${equivalentHtml}
 
+      ${backupNudgeHtml}
+
       <div class="summary__actions">
         <button class="btn btn--secondary summary__actions-share" data-summary-action="share">分享成績卡</button>
         <div class="summary__actions-row">
@@ -1550,6 +1573,22 @@ export function renderSessionSummary(container, session, allSessions, opts = {})
   if (onDelete) {
     const btn = container.querySelector('[data-summary-action="delete"]');
     if (btn) btn.addEventListener('click', onDelete);
+  }
+  if (showBackupNudge) {
+    const nudgeEl = container.querySelector('[data-role="backup-nudge"]');
+    const exportBtn = nudgeEl.querySelector('[data-summary-action="backup-export"]');
+    exportBtn.addEventListener('click', () => {
+      store.exportJSON(cardState);
+      nudgeEl.innerHTML = '<p class="backup-nudge__done">✓ 已匯出備份，檔案在下載資料夾。</p>';
+    });
+    const dismissBtn = nudgeEl.querySelector('[data-summary-action="backup-dismiss"]');
+    dismissBtn.addEventListener('click', () => {
+      store.snoozeBackupNudge(cardState);
+      nudgeEl.classList.add('backup-nudge--leaving');
+      // 220ms 對應 --transition-med（reduced-motion 會被 tokens.css 改成 1ms，
+      // 這裡固定值只影響「淡出後何時真的從 DOM 移除」，元素早已 opacity:0 不可見，無感）。
+      setTimeout(() => nudgeEl.remove(), 220);
+    });
   }
   const retryBtn = container.querySelector('[data-action="retry-challenge"]');
   if (retryBtn) {

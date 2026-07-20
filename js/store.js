@@ -19,7 +19,7 @@ function emptyState() {
   return {
     schema: SCHEMA_VERSION,
     sessions: [],
-    settings: { lastBackupAt: null, inputMode: 'quick', weeklyGoal: null, theme: 'auto', cardBg: 'bg1', homeSeen: false },
+    settings: { lastBackupAt: null, inputMode: 'quick', weeklyGoal: null, theme: 'auto', cardBg: 'bg1', homeSeen: false, backupNudgeBase: null },
     progress: emptyProgress(),
   };
 }
@@ -216,7 +216,7 @@ function migrate(data) {
     data.schema = 11;
   }
 
-  // 保底：不管資料是從哪個版本進來的，progress / settings.inputMode / settings.weeklyGoal / settings.theme / settings.cardBg / settings.homeSeen 形狀都要正確。
+  // 保底：不管資料是從哪個版本進來的，progress / settings.inputMode / settings.weeklyGoal / settings.theme / settings.cardBg / settings.homeSeen / settings.backupNudgeBase 形狀都要正確。
   if (!data.progress || typeof data.progress !== 'object') data.progress = emptyProgress();
   if (!Array.isArray(data.progress.unlocked)) data.progress.unlocked = ['lin_college'];
   if (!data.progress.unlocked.includes('lin_college')) data.progress.unlocked.push('lin_college');
@@ -228,6 +228,7 @@ function migrate(data) {
   if (!('theme' in data.settings)) data.settings.theme = 'auto';
   if (!['paper', 'bg1', 'bg2', 'bg3', 'bg4', 'bg5'].includes(data.settings.cardBg)) data.settings.cardBg = 'bg1';
   if (typeof data.settings.homeSeen !== 'boolean') data.settings.homeSeen = false;
+  if (typeof data.settings.backupNudgeBase !== 'number' && data.settings.backupNudgeBase !== null) data.settings.backupNudgeBase = null;
 
   return data;
 }
@@ -522,7 +523,7 @@ function timestampForFilename() {
   return new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
 }
 
-/** 匯出整份資料為 JSON 檔（Blob + a[download]），並更新 lastBackupAt。 */
+/** 匯出整份資料為 JSON 檔（Blob + a[download]），並更新 lastBackupAt、重設備份提醒基準。 */
 export function exportJSON(state) {
   triggerDownload(
     `shotledger-${timestampForFilename()}.json`,
@@ -530,6 +531,7 @@ export function exportJSON(state) {
     'application/json'
   );
   state.settings.lastBackupAt = new Date().toISOString();
+  state.settings.backupNudgeBase = null;
   save(state);
 }
 
@@ -617,4 +619,10 @@ export function unbackedUpCount(state) {
   const last = state.settings.lastBackupAt;
   if (!last) return state.sessions.filter((s) => s.endedAt !== null).length;
   return state.sessions.filter((s) => s.endedAt !== null && s.startedAt > last).length;
+}
+
+/** 里程碑備份小卡「先不用，下次再說」：記下目前的未備份數當基準，下次要再累積 30 次才會重新出現。 */
+export function snoozeBackupNudge(state) {
+  state.settings.backupNudgeBase = unbackedUpCount(state);
+  save(state);
 }
