@@ -192,6 +192,21 @@ for (const rel of ['js/badges.js', 'js/sharecard.js', 'js/session.js']) {
 }
 
 // ---------------------------------------------------------------------------
+// 10. 徽章數字盤（SPEC_M12）：stars_full／ladder_complete 的門檻不得寫死
+// ---------------------------------------------------------------------------
+// 根因：這兩顆徽章的數字盤要顯示「星星全滿」「全破階梯」的門檻，現在剛好是
+// 45／15，但門檻＝階梯關數 ×3／階梯關數，下次加關就會變（例如 16 關會變
+// 48／16）。如果 badgeNumeral() 裡改成直接寫死字面 45 / 15，加關當下不會報錯，
+// 只會讓數字盤悄悄顯示錯的門檻——這正是這支檢查存在的理由，所以連它自己都要
+// 抓得到。
+const badgeNumeralMatch = badgesSrc.match(/function badgeNumeral\([\s\S]*?\n\}/);
+if (!badgeNumeralMatch) {
+  fail(`js/badges.js 找不到 badgeNumeral()——數字盤的門檻計算函式不見了`);
+} else if (/\b45\b|\b15\b/.test(badgeNumeralMatch[0])) {
+  fail(`js/badges.js badgeNumeral() 裡出現字面 45／15——stars_full／ladder_complete 的門檻要用 ladderMenus() 現算（階梯關數 ×3／階梯關數），不能寫死，下次加關會悄悄顯示錯的數字`);
+}
+
+// ---------------------------------------------------------------------------
 // 結果
 // ---------------------------------------------------------------------------
 warns.forEach((w) => console.log(`  WARN - ${w}`));

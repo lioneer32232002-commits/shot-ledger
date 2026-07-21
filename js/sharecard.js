@@ -399,6 +399,15 @@ function drawCardBackgroundAndPalette(ctx, photoImg) {
         badgeText: '#FFFFFF',
         badgeWeight: 800,
         pctShadow: true,
+        // 徽章數字盤圓盤底（SPEC_M12 照片模式修正）：accent 8% 透明底在照片上等於
+        // 沒有底，數字直接壓在照片的高頻細節（球網、手臂…）上會被吃掉。改用半透明
+        // 深色「晶片底」蓋住照片，思路同 drawMiniCourt() 的出手點位晶片底
+        // （rgba(255,255,255,0.94) 蓋住球場線），只是這裡文字是亮色系，晶片底改深色。
+        // 0.55 是實測 bg2.jpg（籃網＋手臂，最複雜那張）調出來的：用 WCAG 對比度公式
+        // 量最容易被背景吃掉的 4 顆（streak_30／60、volume_50000、stars_10）文字色
+        // 對圓盤底色的對比度，0.42 起跳只有 6.27～6.5、0.55 才穩定站上 7:1（AAA
+        // 門檻）以上，數字在最亂的底圖上仍然清楚。
+        badgeDiscFill: 'rgba(0, 0, 0, 0.55)',
       }
     : {
         text: COLORS.text,
@@ -411,6 +420,8 @@ function drawCardBackgroundAndPalette(ctx, photoImg) {
         badgeText: COLORS.accent,
         badgeWeight: 700,
         pctShadow: false,
+        // 紙感底本身已經夠亮，維持原本的 accent 8% 透明底即可，不需要晶片底。
+        badgeDiscFill: 'rgba(232, 89, 12, 0.08)',
       };
 
   if (photoImg) {
@@ -710,41 +721,100 @@ function drawBadgeIconShape(ctx, icon) {
   });
 }
 
+/** 用最寬字串「2.5K」（17 顆裡最長）量出圓盤能塞下的最大數字字級：discD 圓盤
+ *  直徑下所有徽章共用這一個字級，不因位數不同忽大忽小（SPEC_M12 §0.2，手法
+ *  同 fitFontSize()，只是這裡固定量一個代表字串，不是依內容各自縮）。discD
+ *  會隨版面空間動態縮到最小 76px，這裡跟著現算，不是寫死的常數。 */
+function computeBadgeNumFontSize(ctx, discD, maxWidthRatio) {
+  let size = Math.round(discD * 0.46);
+  while (size > 8) {
+    ctx.font = `800 ${size}px ${FONT_FAMILY}`;
+    if (ctx.measureText('2.5K').width <= discD * maxWidthRatio) break;
+    size -= 1;
+  }
+  return size;
+}
+
 /**
- * 畫一顆徽章獎章圓盤（生涯卡專用）：accent 8% 透明填底＋accent 2px 描邊，
- * 圖示用 badges.js 的線條圖示置中畫在盤面上（視覺約 48px 見方，viewBox 是
- * 0..24，scale=2 換算），畫完 restore 還原變形，不影響後續繪製。
- * 圖示解析／繪製萬一失敗（極少數環境不支援 SVG DOM 或 Path2D），退化成畫一個
- * accent 實心小圓點——徽章圖示壞了不能連累整張卡開天窗。
+ * 畫一顆徽章獎章圓盤（生涯卡專用，SPEC_M12 刊號數字盤）：palette.badgeDiscFill
+ * 填底（紙感模式 accent 8% 透明；照片模式改深色晶片底蓋住照片細節，不然數字會
+ * 被照片的高頻紋理吃掉）＋accent 2px 描邊，中央畫「數字＋單位」，正下方畫縮小版
+ * 家族標記（badges.js 的線條圖示，不重畫），數字與圖示都用既有 measureAscDesc()
+ * 的墨水高度做光學置中，不是幾何置中／魔術常數（SPEC_M12 §0.2）。圖示解析／
+ * 繪製萬一失敗（極少數環境不支援 SVG DOM 或 Path2D），退化成畫一個 accent 實心
+ * 小圓點——徽章圖示壞了不能連累整張卡開天窗。
  * @param {CanvasRenderingContext2D} ctx
  * @param {number} cx
  * @param {number} cy
  * @param {number} r 圓盤半徑
- * @param {string} icon ICON_PATH 的 key
+ * @param {{icon:string, num:string, unit:string}} badge earnedBadgeList() 的一筆
+ * @param {number} baseFontSize 這張卡的徽章數字共用字級（computeBadgeNumFontSize() 算好的）
  * @param {Object} palette drawCardBackgroundAndPalette() 的回傳值
  */
-function drawBadgeMedal(ctx, cx, cy, r, icon, palette) {
+function drawBadgeMedal(ctx, cx, cy, r, badge, baseFontSize, palette) {
+  // 圓盤底：palette.badgeDiscFill 已經是完整 rgba()（含各自模式要的透明度），
+  // 不用 globalAlpha 疊——紙感模式維持 accent 8%，照片模式改深色晶片底蓋住照片
+  // 細節（SPEC_M12 照片模式修正），畫圖函式本身不判斷有沒有照片，只讀 palette。
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.globalAlpha = 0.08;
-  ctx.fillStyle = palette.accent;
+  ctx.fillStyle = palette.badgeDiscFill;
   ctx.fill();
-  ctx.globalAlpha = 1;
   ctx.lineWidth = 2;
   ctx.strokeStyle = palette.accent;
   ctx.stroke();
 
+  // 分享卡沒有旁白文字（不像成就條／徽章牆旁邊就有徽章全名），單位字要自己把話
+  // 講完，所以字級大幅提高（原本 0.38，即約 14px，中文單位字站不住）。摘星家族的
+  // 單位「★」跟正下方的星星家族標記是同一個符號，字級一樣大會顯得重複刺眼，
+  // 這裡維持小一級（0.42），其餘三個家族（天／關）都是 CJK 文字，要大到能讀。
+  const unitRatio = badge.unit === '★' ? 0.42 : 0.55;
+  const unitSize = Math.round(baseFontSize * unitRatio);
+  const numFont = `800 ${baseFontSize}px ${FONT_FAMILY}`;
+  const unitFont = `700 ${unitSize}px ${FONT_FAMILY}`;
+  const markSize = Math.max(9, Math.round(r * 2 * 0.2));
+  const gap = Math.max(2, Math.round(r * 2 * 0.05));
+
   try {
-    const iconSize = 48; // 視覺目標尺寸；viewBox 是 24 單位，換算 scale k=2
-    const k = iconSize / 24;
+    const numMetrics = measureAscDesc(ctx, badge.num, numFont);
+    const unitMetrics = badge.unit ? measureAscDesc(ctx, badge.unit, unitFont) : null;
+    const numWidth = numMetrics.width + (unitMetrics ? unitMetrics.width + 1 : 0);
+    // 數字＋單位同一條 baseline，但單位字級變大後兩者的墨水 ascent/descent 不再
+    // 相等（尤其中文單位常比數字高）——這一行的實際高度要取兩者較大值，不能只用
+    // 數字的墨水高度，否則單位可能戳出圓盤外圈。
+    const rowAsc = unitMetrics ? Math.max(numMetrics.asc, unitMetrics.asc) : numMetrics.asc;
+    const rowDesc = unitMetrics ? Math.max(numMetrics.desc, unitMetrics.desc) : numMetrics.desc;
+    const numHeight = rowAsc + rowDesc;
+    const contentH = numHeight + gap + markSize;
+    const contentTop = cy - contentH / 2;
+
+    // 數字＋單位：ink-based 精準置中（用這一行的墨水高度算 baseline，不是字級
+    // 猜測），x 方向手動置中；單位字級不同、用 textAlign=left 逐段畫比較好控制間距。
+    const numBaselineY = contentTop + rowAsc;
+    let xCursor = cx - numWidth / 2;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = palette.accent;
+    ctx.font = numFont;
+    ctx.fillText(badge.num, xCursor, numBaselineY);
+    xCursor += numMetrics.width;
+    if (badge.unit) {
+      ctx.font = unitFont;
+      ctx.globalAlpha = 0.76;
+      ctx.fillText(badge.unit, xCursor + 1, numBaselineY);
+      ctx.globalAlpha = 1;
+    }
+
+    // 家族標記：縮小版，畫在數字正下方
+    const markTop = contentTop + numHeight + gap;
+    const k = markSize / 24;
     ctx.save();
-    ctx.translate(cx - iconSize / 2, cy - iconSize / 2);
+    ctx.translate(cx - markSize / 2, markTop);
     ctx.scale(k, k);
     ctx.strokeStyle = palette.accent;
     ctx.lineWidth = 1.7 / k;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    drawBadgeIconShape(ctx, icon);
+    drawBadgeIconShape(ctx, badge.icon);
     ctx.restore();
   } catch (err) {
     ctx.beginPath();
@@ -752,6 +822,9 @@ function drawBadgeMedal(ctx, cx, cy, r, icon, palette) {
     ctx.arc(cx, cy, 6, 0, Math.PI * 2);
     ctx.fill();
   }
+
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
 }
 
 // ---------------------------------------------------------------------------
@@ -773,7 +846,7 @@ const LT_BADGE_LABEL_SIZE = 28;
 const LT_BADGE_DISC_MAX = 112;
 const LT_BADGE_DISC_MIN = 76; // 極端資料縮到底的下限（沿用舊版縮圓盤鐵律）
 const LT_BADGE_DISC_GAP = 24;
-const LT_BADGE_ROW_GAP = 24; // 兩列徽章之間的列距
+const LT_BADGE_ROW_GAP = 24; // 徽章列與列之間的列距（兩列或三列都用這個值）
 const LT_BADGE_PER_ROW = 7; // 7×112 + 6×24 = 928 剛好滿版（CARD_W - marginX*2）
 const LT_GAP_PCT_TO_DETAIL = 22;
 const LT_GAP_BRAND = 34; // 品牌列到標題：固定值，不參與剩餘空間分配
@@ -787,10 +860,12 @@ const LT_GAP_BADGE_LABEL_TO_ROW = 18;
 const LT_MAX_EXTRA_PER_GAP = 90; // 每個可分配間隙最多再加這麼多
 
 /**
- * 排出徽章獎章列的座標（不畫圖，純算位置）：一列最多 7 顆，超過 7 顆分兩列，
- * 最多顯示 13 顆實際圖示＋第 14 格＝「＋N」（總共最多 14 格，兩列 7+7）。
- * N 的算法跟舊版「一列 8 格、前 7 顆＋第 8 格 +N」同一套邏輯類推
- * （shown = 格數上限-1，N = 總數-shown），只是格數上限從 8 換成 14。
+ * 排出徽章獎章列的座標（不畫圖，純算位置，SPEC_M12 §2）：一列最多 7 顆，
+ * 8–14 顆兩列，15 顆以上三列（最多 21 顆＝7+7+7）；超過 21 顆時最後一格改畫
+ * 「＋N」收尾（最多顯示 20 顆實際圖示＋1 個 +N 格）。目前徽章總數 17（三列
+ * 7+7+3）放得下，不會觸發 +N——這裡保留只是為了未來徽章家族再擴充時版面不炸。
+ * N 的算法跟舊版「格數上限-1 顆圖示＋最後一格 +N」同一套邏輯類推，只是格數
+ * 上限從 14（兩列）換成 21（三列）。
  * @param {number} count 已獲得徽章數
  * @param {number} discD 圓盤直徑
  * @param {number} discGap 同列圓盤間距
@@ -802,35 +877,30 @@ const LT_MAX_EXTRA_PER_GAP = 90; // 每個可分配間隙最多再加這麼多
 function layoutBadgeRows(count, discD, discGap, rowGap, marginX, topY) {
   if (count <= 0) return { rows: [], height: 0, numRows: 0, plusN: 0 };
 
-  const showPlus = count > LT_BADGE_PER_ROW * 2; // >14
-  const iconsShown = showPlus ? LT_BADGE_PER_ROW * 2 - 1 : count; // showPlus 時只畫 13 顆圖示，第 14 格是 +N
-  const row1Count = Math.min(iconsShown, LT_BADGE_PER_ROW);
-  const row2IconCount = iconsShown - row1Count;
-  const numRows = row2IconCount > 0 || showPlus ? 2 : 1;
+  const MAX_SLOTS = LT_BADGE_PER_ROW * 3; // 21：三列上限
+  const showPlus = count > MAX_SLOTS;
+  const iconsShown = showPlus ? MAX_SLOTS - 1 : count; // showPlus 時只畫 20 顆圖示，最後一格是 +N
+  const numRows = Math.min(3, Math.ceil(iconsShown / LT_BADGE_PER_ROW));
 
   const rows = [];
-  const row1Cy = topY + discD / 2;
-  const row1 = [];
-  let cx = marginX + discD / 2;
-  for (let i = 0; i < row1Count; i++) {
-    row1.push({ cx, cy: row1Cy, type: 'icon', index: i });
-    cx += discD + discGap;
-  }
-  rows.push(row1);
-
-  if (numRows === 2) {
-    const row2Cy = topY + discD + rowGap + discD / 2;
-    const row2 = [];
-    cx = marginX + discD / 2;
-    for (let i = 0; i < row2IconCount; i++) {
-      row2.push({ cx, cy: row2Cy, type: 'icon', index: row1Count + i });
+  let idx = 0;
+  for (let r = 0; r < numRows; r++) {
+    const rowCy = topY + r * (discD + rowGap) + discD / 2;
+    const isLastRow = r === numRows - 1;
+    const remaining = iconsShown - idx;
+    const rowIconCount = isLastRow ? remaining : Math.min(LT_BADGE_PER_ROW, remaining);
+    const row = [];
+    let cx = marginX + discD / 2;
+    for (let i = 0; i < rowIconCount; i++) {
+      row.push({ cx, cy: rowCy, type: 'icon', index: idx });
       cx += discD + discGap;
+      idx++;
     }
-    if (showPlus) row2.push({ cx, cy: row2Cy, type: 'plus' });
-    rows.push(row2);
+    if (isLastRow && showPlus) row.push({ cx, cy: rowCy, type: 'plus' });
+    rows.push(row);
   }
 
-  const height = numRows * discD + (numRows > 1 ? rowGap : 0);
+  const height = numRows * discD + (numRows > 1 ? (numRows - 1) * rowGap : 0);
   const plusN = showPlus ? count - iconsShown : 0;
   return { rows, height, numRows, plusN };
 }
@@ -970,9 +1040,13 @@ function computeLifetimeLayout(ctx, data) {
   } else if (badgeList.length > 0) {
     const deficit = -slack;
     const trial = layoutBadgeRows(badgeList.length, LT_BADGE_DISC_MAX, LT_BADGE_DISC_GAP, LT_BADGE_ROW_GAP, marginX, 0);
-    const floorHeight = trial.numRows * LT_BADGE_DISC_MIN + (trial.numRows > 1 ? LT_BADGE_ROW_GAP : 0);
+    // rowGaps：三列（17 顆全滿）有 2 個列距要扣，不是固定 1 個——沿用兩列時代
+    // 留下的 `numRows>1 ? rowGap : 0` 在三列時會少扣一個列距，圓盤會算得比實際
+    // 能塞下的還大，改用 (numRows-1)*rowGap 才對兩列／三列都成立。
+    const rowGaps = trial.numRows > 1 ? (trial.numRows - 1) * LT_BADGE_ROW_GAP : 0;
+    const floorHeight = trial.numRows * LT_BADGE_DISC_MIN + rowGaps;
     const targetHeight = Math.max(floorHeight, trial.height - deficit);
-    discD = trial.numRows > 1 ? (targetHeight - LT_BADGE_ROW_GAP) / trial.numRows : targetHeight;
+    discD = trial.numRows > 1 ? (targetHeight - rowGaps) / trial.numRows : targetHeight;
     discD = Math.max(LT_BADGE_DISC_MIN, discD);
   }
 
@@ -1143,6 +1217,7 @@ function paintLifetimeLayout(ctx, layout, palette) {
     ctx.fillText(bg.emptyText, marginX, bg.emptyBaseline);
   } else {
     const r = bg.discD / 2;
+    const badgeNumFontSize = computeBadgeNumFontSize(ctx, bg.discD, 0.58);
     bg.layout.rows.forEach((row) => {
       row.forEach((cell) => {
         if (cell.type === 'plus') {
@@ -1164,7 +1239,7 @@ function paintLifetimeLayout(ctx, layout, palette) {
           ctx.textAlign = 'left';
           ctx.textBaseline = 'alphabetic';
         } else {
-          drawBadgeMedal(ctx, cell.cx, cell.cy, r, bg.list[cell.index].icon, palette);
+          drawBadgeMedal(ctx, cell.cx, cell.cy, r, bg.list[cell.index], badgeNumFontSize, palette);
         }
       });
     });

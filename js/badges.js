@@ -70,6 +70,115 @@ function iconSvg(icon, cls) {
   return `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATH[icon] || ICON_PATH.trophy}</svg>`;
 }
 
+// ---------------------------------------------------------------------------
+// 數字盤（刊號數字盤，SPEC_M12）：17 顆徽章只有 4 種線條圖示，同家族好幾顆長
+// 一樣，在沒有文字說明的生涯分享卡上看起來像壞掉。改讓門檻數字當主角——圓盤
+// 中央放大數字＋單位，家族圖示縮小成數字正下方的輔助標記，不重畫任何圖示。
+// ---------------------------------------------------------------------------
+
+/** 投量門檻換算成「K」顯示：1000→'1K'、2500→'2.5K'，整數不補 .0（SPEC_M12 §0.1）。 */
+function formatVolumeK(target) {
+  const k = target / 1000;
+  return `${k}K`;
+}
+
+/**
+ * 徽章的數字盤內容：{ num, unit, icon }。動態門檻（stars_full／ladder_complete）
+ * 依現行階梯長度算，不得寫死——不論傳進來的 def.target 是不是 null 或已經被
+ * badgeStatus() 解出來的數字，這兩顆一律自己用 ladderMenus() 現算，加關不用改。
+ * @param {{id:string, icon:string, kind:string, target:(number|null)}} def
+ * @returns {{num:string, unit:string, icon:string}}
+ */
+export function badgeNumeral(def) {
+  const { id, icon, kind, target } = def;
+  if (kind === 'streak') return { num: `${target}`, unit: '天', icon };
+  if (kind === 'volume') return { num: formatVolumeK(target), unit: '', icon };
+  if (kind === 'stars') {
+    const t = id === 'stars_full' ? ladderMenus().length * 3 : target;
+    return { num: `${t}`, unit: '★', icon };
+  }
+  // kind === 'ladder'
+  const t = id === 'ladder_complete' ? ladderMenus().length : target;
+  return { num: `${t}`, unit: '關', icon };
+}
+
+const NUM_FONT_FAMILY = "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang TC', 'Noto Sans TC', 'Microsoft JhengHei', 'Heiti TC', sans-serif";
+const NUM_WIDEST = '2.5K'; // 17 顆裡最長的門檻字串，決定同尺寸下的共用字級（SPEC_M12 §0.2）
+
+let _measureCtx = null;
+function getMeasureCtx() {
+  if (!_measureCtx) _measureCtx = document.createElement('canvas').getContext('2d');
+  return _measureCtx;
+}
+
+const numFontSizeCache = {};
+/** 量出 discPx 圓盤下，數字（800 字重）能共用的最大字級：從約 0.46×直徑起每次
+ *  -1px，直到「2.5K」塞進 maxWidthRatio×直徑為止。同一個尺寸下的 17 顆共用這
+ *  一個字級，不因位數不同忽大忽小（SPEC_M12 §0.2），依 (discPx, ratio) 快取，
+ *  牆與成就條每次重繪都不用重新試位。 */
+function numFontSize(discPx, maxWidthRatio) {
+  const cacheKey = `${discPx}:${maxWidthRatio}`;
+  if (numFontSizeCache[cacheKey]) return numFontSizeCache[cacheKey];
+  const ctx = getMeasureCtx();
+  let size = Math.round(discPx * 0.46);
+  while (size > 8) {
+    ctx.font = `800 ${size}px ${NUM_FONT_FAMILY}`;
+    if (ctx.measureText(NUM_WIDEST).width <= discPx * maxWidthRatio) break;
+    size -= 1;
+  }
+  numFontSizeCache[cacheKey] = size;
+  return size;
+}
+
+/**
+ * 數字視覺置中修正量（px，往上為負值）：數字沒有下伸部，但 line-height:1 的
+ * 字級盒子仍保留字型「泛用」的下伸空間，這段看不見的空白會把「數字＋家族
+ * 標記」這組內容往下推。做法同 sharecard.js measureAscDesc() 的墨水量測思路
+ * ——量出泛用下伸（fontBoundingBoxDescent）與墨水下伸（actualBoundingBoxDescent）
+ * 的差，往上收半份，不是憑經驗猜一個固定比例。部分舊瀏覽器沒有
+ * fontBoundingBox*：不修正，純保底，不影響主流程。
+ */
+function numeralNudgePx(text, font) {
+  const ctx = getMeasureCtx();
+  ctx.font = font;
+  const m = ctx.measureText(text);
+  const genDesc = m.fontBoundingBoxDescent;
+  const inkDesc = m.actualBoundingBoxDescent;
+  if (typeof genDesc !== 'number' || typeof inkDesc !== 'number' || Number.isNaN(genDesc) || Number.isNaN(inkDesc)) {
+    return 0;
+  }
+  return -Math.max(0, genDesc - inkDesc) / 2;
+}
+
+/**
+ * 數字盤內層 HTML（圓盤底／進度環由外層 disc 組裝，這裡只管盤面中央的內容）：
+ * 數字（＋單位，視 showUnit）置中在上、家族小標記在下。__disc/__ring 沿用既有
+ * 徽章牆／成就條的圓盤幾何，這裡只是把原本的單一圖示換成數字盤。
+ * @param {{num:string, unit:string, icon:string}} numeral badgeNumeral() 的回傳值
+ * @param {number} discPx 圓盤直徑（44 成就條／68 徽章牆）
+ * @param {number} maxWidthRatio 數字最大寬度佔圓盤直徑的比例，尺寸越小留白比例越高
+ * @param {boolean} [showUnit=true] 是否畫單位字（「天」「關」「★」）。44／68 兩處
+ *   實測：中文單位字在這兩個尺寸只能塞進 5～8px，CJK 可讀下限約 10～11px，糊成一團
+ *   墨點；這兩處旁邊本來就有徽章全名可以講門檻（「連續練習 3 天」），單位是多餘的。
+ *   單位真正的用途留給生涯分享卡（112px，那裡沒有任何文字說明，數字盤要自己講完）。
+ */
+function numeralStackHtml(numeral, discPx, maxWidthRatio, showUnit = true) {
+  const fontSize = numFontSize(discPx, maxWidthRatio);
+  const unitSize = Math.round(fontSize * 0.45);
+  const numFont = `800 ${fontSize}px ${NUM_FONT_FAMILY}`;
+  const nudge = numeralNudgePx(numeral.num, numFont);
+  const unitHtml = showUnit && numeral.unit
+    ? `<span class="badge-numeral__unit" style="font-size:${unitSize}px">${numeral.unit}</span>`
+    : '';
+  const markSize = Math.max(7, Math.round(discPx * 0.2));
+  return `
+    <div class="badge-numeral">
+      <span class="badge-numeral__num" style="font-size:${fontSize}px;transform:translateY(${nudge.toFixed(2)}px)">${numeral.num}${unitHtml}</span>
+      <span class="badge-numeral__mark" style="width:${markSize}px;height:${markSize}px;">${iconSvg(numeral.icon, '')}</span>
+    </div>
+  `;
+}
+
 // 階梯已通過關數（全破徽章的進度、生涯分享卡的「已通過 N/M 關」都用它）：通過
 // 讀 progress.passed 明確記錄（SPEC_M11 §4.1）。舊版通過＝「下一關已解鎖」推導，
 // 插入新關（如第 11 關 lin_taiwan、第 11／14 關 brunson／bird）會讓玩家沒打過
@@ -92,11 +201,16 @@ export function ladderProgress(state) {
  */
 export function earnedBadgeList(state) {
   const badges = state.progress.badges;
-  return BADGE_DEFS.filter((def) => badges.includes(def.id)).map((def) => ({
-    id: def.id,
-    icon: def.icon,
-    label: BADGE_LABEL[def.id] || def.id,
-  }));
+  return BADGE_DEFS.filter((def) => badges.includes(def.id)).map((def) => {
+    const numeral = badgeNumeral(def);
+    return {
+      id: def.id,
+      icon: def.icon,
+      label: BADGE_LABEL[def.id] || def.id,
+      num: numeral.num,
+      unit: numeral.unit,
+    };
+  });
 }
 
 /** 三星制總覽（統計頁資料狀態列也用）：total 動態算（關數 × 3），不寫死。 */
@@ -146,11 +260,16 @@ function badgeStatus(state, now) {
 // 進度環圈半徑 31（獎章 68px 內縮 3px 描邊），圓周 2πr ≈ 194.8。
 const MEDAL_RING_C = 194.8;
 
-function medalHtml({ id, icon, earned, progress, meta, capstone }) {
+function medalHtml({ id, icon, earned, progress, meta, capstone, kind, target }) {
   const clamped = earned ? 1 : Math.max(0, Math.min(progress || 0, 1));
   const offset = (MEDAL_RING_C * (1 - clamped)).toFixed(1);
   const cls = ['badge-medal', earned ? 'badge-medal--earned' : 'badge-medal--locked'];
   if (capstone) cls.push('badge-medal--capstone');
+  // kind 缺席＝不在 BADGE_DEFS 裡的舊資料（migration 殘留），數字盤沒有門檻可畫，
+  // 退回純圖示，牆不會因為認不得的舊 id 開天窗。
+  const centerHtml = kind
+    ? numeralStackHtml(badgeNumeral({ id, icon, kind, target }), 68, 0.60, false)
+    : iconSvg(icon, 'badge-medal__icon');
   const discHtml = `
     <div class="badge-medal__disc">
       <svg class="badge-medal__ring" viewBox="0 0 68 68" aria-hidden="true">
@@ -158,7 +277,7 @@ function medalHtml({ id, icon, earned, progress, meta, capstone }) {
         <circle class="badge-medal__ring-fill" cx="34" cy="34" r="31" fill="none" stroke-width="3"
           stroke-dasharray="${MEDAL_RING_C}" stroke-dashoffset="${offset}" transform="rotate(-90 34 34)"/>
       </svg>
-      ${iconSvg(icon, 'badge-medal__icon')}
+      ${centerHtml}
     </div>
   `;
   const textHtml = `
@@ -244,7 +363,7 @@ export function badgeStripHtml(state, now = new Date()) {
           <circle class="badge-strip__ring-fill" cx="22" cy="22" r="19" fill="none" stroke-width="2.5"
             stroke-dasharray="${STRIP_RING_C}" stroke-dashoffset="${offset}" transform="rotate(-90 22 22)"/>
         </svg>
-        ${iconSvg(next.icon, 'badge-strip__icon')}
+        ${numeralStackHtml(badgeNumeral(next), 44, 0.62, false)}
       </div>
       <div class="badge-strip__text">
         <span class="badge-strip__label">${earnedCount === 0 ? '第一顆徽章' : '下一顆徽章'}</span>
