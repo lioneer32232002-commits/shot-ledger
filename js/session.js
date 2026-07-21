@@ -3,7 +3,7 @@
 // 掛載於 app.js 的 hash router（#/train）。
 
 import * as store from './store.js';
-import { MENUS, getMenu, getMenuRounds, ladderMenus, nextMenuId, playerStatusLabel } from './menus.js';
+import { MENUS, getMenu, getMenuRounds, ladderMenus, playerStatusLabel } from './menus.js';
 import { renderCourt, getSpot, typeLabel } from './court.js';
 import {
   aggregate, pct, recentTypeAvg, todaySummary,
@@ -178,13 +178,9 @@ function renderView() {
 function currentLadderState() {
   const ladder = ladderMenus();
   const unlockedIds = state.progress.unlocked;
-  const passedIds = ladder
-    .filter((m) => {
-      const next = nextMenuId(m.id);
-      if (next) return unlockedIds.includes(next);
-      return state.progress.badges.includes('ladder_complete');
-    })
-    .map((m) => m.id);
+  // 通過讀 progress.passed 明確記錄（SPEC_M11 §4.1）：舊版用「下一關已解鎖」
+  // 推導，插入新關（brunson／bird）會讓玩家沒打過的新關被自動判定成已通過。
+  const passedIds = Array.isArray(state.progress.passed) ? state.progress.passed : [];
 
   let currentMenu = ladder.find((m) => unlockedIds.includes(m.id) && !passedIds.includes(m.id));
   if (!currentMenu) currentMenu = ladder[ladder.length - 1];

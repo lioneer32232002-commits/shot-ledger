@@ -70,17 +70,17 @@ function iconSvg(icon, cls) {
   return `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATH[icon] || ICON_PATH.trophy}</svg>`;
 }
 
-// 階梯已通過關數（全破徽章的進度、生涯分享卡的「已通過 N/M 關」都用它）：通過的
-// 定義＝下一關已解鎖、末關看 ladder_complete 徽章，與 session.js 階梯頁的
-// passedIds 同一套判定。export 給 sharecard.js 用（原名 passedLadderCount 改名，
-// 呼叫端跟著改）。
+// 階梯已通過關數（全破徽章的進度、生涯分享卡的「已通過 N/M 關」都用它）：通過
+// 讀 progress.passed 明確記錄（SPEC_M11 §4.1）。舊版通過＝「下一關已解鎖」推導，
+// 插入新關（如第 11 關 lin_taiwan、第 11／14 關 brunson／bird）會讓玩家沒打過
+// 的新關被自動判定成已通過——因為玩家早就解鎖了新關後面那一關。改用明確記錄後
+// 不再有這個洞；與現行 ladder 取交集，防禦改名／刪關卡留下的殘留 id。
+// export 給 sharecard.js 用（原名 passedLadderCount 改名，呼叫端跟著改）。
 export function ladderProgress(state) {
   const ladder = ladderMenus();
-  const passed = ladder.filter((m, i) => {
-    const next = ladder[i + 1];
-    if (next) return state.progress.unlocked.includes(next.id);
-    return state.progress.badges.includes('ladder_complete');
-  }).length;
+  const ladderIds = new Set(ladder.map((m) => m.id));
+  const passedList = Array.isArray(state.progress.passed) ? state.progress.passed : [];
+  const passed = passedList.filter((id) => ladderIds.has(id)).length;
   return { passed, total: ladder.length };
 }
 

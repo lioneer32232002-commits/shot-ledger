@@ -414,6 +414,15 @@ function starsSession(mode, roundSpecs) {
   return { variant: 'full', mode, rounds };
 }
 
+/** 同 starsSession 的 at 遞增手法，但允許自訂 attempts／makes（brunson／bird 的合計門檻測試要湊特定 pct）。 */
+function customRounds(specs) {
+  let t = new Date('2026-07-12T00:00:00.000Z').getTime();
+  return specs.map(([type, attempts, makes]) => {
+    t += 90 * 1000;
+    return { type, attempts, makes, at: new Date(t).toISOString() };
+  });
+}
+
 const dirkMenu = { id: 'dirk', challenge: true, passRule: [{ type: '2pt', minPct: 55 }] };
 
 test('★1/★3：達門檻拿解鎖星，門檻 +10pp 才拿高標星', () => {
@@ -444,6 +453,26 @@ test('★2 curry 雙修＝門檻 +5pp：深 3 剛好 40% 成立（門檻 35+5，
   const menu = { id: 'curry', challenge: true, passRule: [{ type: '3pt', minPct: 45 }, { type: 'deep3', minPct: 35 }] };
   const s = starsSession('curry', [['3pt_top', '3pt', 5], ['deep_top', 'deep3', 4]]); // 3pt 50%、deep3 40%
   assert.equal(evaluateStars(menu, s).signature, true);
+});
+
+test('★2 brunson 第四節接管：最後 3 輪合計 60% 剛好成立、59% 不成立、不足 3 輪不成立', () => {
+  const brunsonMenu = { id: 'brunson', challenge: true, passRule: [{ type: '2pt', minPct: 55 }, { type: 'ft', minPct: 80 }] };
+  const exactly60 = { variant: 'full', mode: 'brunson', rounds: customRounds([['2pt', 10, 6], ['2pt', 10, 6], ['2pt', 10, 6]]) }; // 18/30=60%
+  const exactly59 = { variant: 'full', mode: 'brunson', rounds: customRounds([['2pt', 34, 20], ['2pt', 33, 20], ['2pt', 33, 19]]) }; // 59/100=59%
+  const tooFewRounds = { variant: 'full', mode: 'brunson', rounds: customRounds([['2pt', 10, 10], ['2pt', 10, 10]]) };
+  assert.equal(evaluateStars(brunsonMenu, exactly60).signature, true);
+  assert.equal(evaluateStars(brunsonMenu, exactly59).signature, false);
+  assert.equal(evaluateStars(brunsonMenu, tooFewRounds).signature, false);
+});
+
+test('★2 bird 50-40-90：三條全過剛好成立；罰球 89% 不成立；完全沒有三分輪不成立', () => {
+  const birdMenu = { id: 'bird', challenge: true, passRule: [{ type: '3pt', minPct: 42 }, { type: 'ft', minPct: 85 }] };
+  const allPass = { variant: 'full', mode: 'bird', rounds: customRounds([['2pt', 20, 10], ['3pt', 20, 8], ['ft', 20, 18]]) }; // 50/40/90
+  const ftFail = { variant: 'full', mode: 'bird', rounds: customRounds([['2pt', 20, 10], ['3pt', 20, 8], ['ft', 100, 89]]) }; // ft 89%
+  const no3pt = { variant: 'full', mode: 'bird', rounds: customRounds([['2pt', 20, 10], ['ft', 20, 18]]) };
+  assert.equal(evaluateStars(birdMenu, allPass).signature, true);
+  assert.equal(evaluateStars(birdMenu, ftFail).signature, false);
+  assert.equal(evaluateStars(birdMenu, no3pt).signature, false);
 });
 
 test('非挑戰菜單或空 rounds → 三星全 false', () => {

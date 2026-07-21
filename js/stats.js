@@ -293,6 +293,21 @@ function evaluateSignature(menuId, rounds) {
       const deep = groupTotals(rounds, (r) => r.type === 'deep3');
       return three.pct !== null && three.pct >= 50 && deep.pct !== null && deep.pct >= 40;
     }
+    case 'brunson': {
+      // 第四節接管：最後 3 輪合計命中率 ≥60%（不足 3 輪不成立）。
+      if (rounds.length < 3) return false;
+      const g = groupTotals(rounds.slice(-3), () => true);
+      return g.pct !== null && g.pct >= 60;
+    }
+    case 'bird': {
+      // 50-40-90：同一場 2 分 ≥50%、3 分 ≥40%、罰球 ≥90%（任一種沒出手就不成立）。
+      const two = groupTotals(rounds, (r) => r.type === '2pt');
+      const three = groupTotals(rounds, (r) => r.type === '3pt');
+      const ft = groupTotals(rounds, (r) => r.type === 'ft');
+      return two.pct !== null && two.pct >= 50
+        && three.pct !== null && three.pct >= 40
+        && ft.pct !== null && ft.pct >= 90;
+    }
     default:
       return false;
   }

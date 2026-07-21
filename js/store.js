@@ -9,10 +9,14 @@ import {
 // menus.js / stats.js 都是無相依的純資料／純函式模組，這裡 import 不會形成循環。
 
 const KEY = 'shotledger_v1';
-const SCHEMA_VERSION = 11;
+const SCHEMA_VERSION = 12;
 
 function emptyProgress() {
-  return { unlocked: ['lin_college'], best: {}, badges: [], stars: {} };
+  // passed：明確記錄「已通過」的 menu id（SPEC_M11 §4.1）。舊版沒有這個欄位，
+  // 「通過」是用「下一關已解鎖」推導出來的——插入新關會讓玩家沒打過的新關被
+  // 自動判定成已通過（因為玩家早就解鎖了新關後面那一關）。改版起，通過只在
+  // applyChallengeResult() 真正過關當下才寫進來，不再用 unlocked 推導。
+  return { unlocked: ['lin_college'], best: {}, badges: [], stars: {}, passed: [] };
 }
 
 function emptyState() {
@@ -216,6 +220,57 @@ function migrate(data) {
     data.schema = 11;
   }
 
+  if (data.schema < 12) {
+    // 階梯 13 → 15 關（SPEC_M11）＋通過狀態改為明確記錄（§4.1）。
+    //
+    // 根因：舊版「通過」是推導出來的（下一關已解鎖＝這關通過），badges.js
+    // ladderProgress()／sharecard.js buildLadderCells()／session.js 階梯頁都用
+    // 同一套推導。任何插在中間的新關，只要玩家早就解鎖了它後面那關，新關就會
+    // 被自動判定成「已通過」——第 11 關 lin_taiwan 當初插入時就有這個洞，只是
+    // 沒被發現。這次順便把「通過」改成明確存在 progress.passed 的 id 陣列，
+    // 之後只由 applyChallengeResult() 在真正過關當下寫入。
+    //
+    // migration 分兩步、順序很重要：
+    // 1) 用「改版前的 13 關順序」回推 passed——不能用 ladderMenus()，那已經是
+    //    插入 brunson／bird 後的 15 關順序，回推會把兩個新關算成已通過。
+    // 2) 才補 brunson／bird 的解鎖（只進 unlocked，不進 passed——新插入的關卡
+    //    永遠是「可以打」，不能被這次改版直接送成「已通過」）。
+    const LADDER_PRE_M11 = [
+      'lin_college', 'lin_dleague', 'lin', 'dirk_rookie', 'dirk',
+      'allen_bucks', 'allen', 'klay_rise', 'klay', 'lillard',
+      'lin_taiwan', 'curry_mvp', 'curry',
+    ];
+    if (!data.progress || typeof data.progress !== 'object') data.progress = emptyProgress();
+    if (!Array.isArray(data.progress.unlocked)) data.progress.unlocked = [];
+    if (!Array.isArray(data.progress.badges)) data.progress.badges = [];
+    if (!Array.isArray(data.progress.passed)) data.progress.passed = [];
+
+    LADDER_PRE_M11.forEach((id, i) => {
+      const next = LADDER_PRE_M11[i + 1];
+      const wasPassed = next
+        ? data.progress.unlocked.includes(next)
+        : data.progress.badges.includes('ladder_complete');
+      if (wasPassed && !data.progress.passed.includes(id)) data.progress.passed.push(id);
+    });
+
+    if (data.progress.unlocked.includes('lin_taiwan') && !data.progress.unlocked.includes('brunson')) {
+      data.progress.unlocked.push('brunson');
+    }
+    if (data.progress.unlocked.includes('curry') && !data.progress.unlocked.includes('bird')) {
+      data.progress.unlocked.push('bird');
+    }
+
+    // 保險：passed 剛補齊，重新掃一次 ladder_3／ladder_7／stars_* 徽章——避免
+    // 「passed 這時才存在」導致 schema<11 那段回溯發章（跑在此段之前）漏算
+    // 階梯里程碑（只加不減，addIf 對已有的徽章是 no-op）。
+    const addIf = (cond, id) => {
+      if (cond && !data.progress.badges.includes(id)) data.progress.badges.push(id);
+    };
+    computeProgressBadges(data.progress).forEach((id) => addIf(true, id));
+
+    data.schema = 12;
+  }
+
   // 保底：不管資料是從哪個版本進來的，progress / settings.inputMode / settings.weeklyGoal / settings.theme / settings.cardBg / settings.homeSeen / settings.backupNudgeBase 形狀都要正確。
   if (!data.progress || typeof data.progress !== 'object') data.progress = emptyProgress();
   if (!Array.isArray(data.progress.unlocked)) data.progress.unlocked = ['lin_college'];
@@ -223,6 +278,7 @@ function migrate(data) {
   if (!data.progress.best || typeof data.progress.best !== 'object') data.progress.best = {};
   if (!Array.isArray(data.progress.badges)) data.progress.badges = [];
   if (!data.progress.stars || typeof data.progress.stars !== 'object') data.progress.stars = {};
+  if (!Array.isArray(data.progress.passed)) data.progress.passed = [];
   if (!('inputMode' in data.settings)) data.settings.inputMode = 'quick';
   if (!('weeklyGoal' in data.settings)) data.settings.weeklyGoal = null;
   if (!('theme' in data.settings)) data.settings.theme = 'auto';
@@ -338,6 +394,20 @@ export function unlockMenu(state, menuId) {
   return true;
 }
 
+/**
+ * 標記某菜單「已通過」（SPEC_M11 §4.1：通過狀態改為明確記錄，不再用「下一關
+ * 已解鎖」推導——插入新關會讓玩家沒打過的新關被自動判定成已通過）。
+ * 唯一寫入路徑是 applyChallengeResult()；已標記過則回傳 false（不重複寫入）。
+ */
+export function markPassed(state, menuId) {
+  if (!menuId) return false;
+  if (!Array.isArray(state.progress.passed)) state.progress.passed = [];
+  if (state.progress.passed.includes(menuId)) return false;
+  state.progress.passed.push(menuId);
+  save(state);
+  return true;
+}
+
 /** 更新某菜單的歷史最佳紀錄；只有破紀錄才會真正寫入，回傳是否為新紀錄。 */
 export function updateBest(state, menuId, record) {
   const prev = state.progress.best[menuId];
@@ -349,19 +419,16 @@ export function updateBest(state, menuId, record) {
 
 /**
  * 進度型徽章（階梯里程碑＋摘星）：看 progress 現況、與 sessions 無關。
- * 「通過」判定與 session.js 階梯頁同一套（下一關已解鎖、末關看 ladder_complete）；
+ * 「通過」讀 progress.passed 明確記錄（SPEC_M11 §4.1，不再用「下一關已解鎖」
+ * 推導——與現行 ladder 取交集，防禦改名／刪關卡留下的殘留 id）；
  * 星星全滿門檻動態算（關數 × 3），關數之後再變也不用改這裡。
  */
 function computeProgressBadges(progress) {
   const ladder = ladderMenus();
-  const unlocked = Array.isArray(progress.unlocked) ? progress.unlocked : [];
-  const badgeList = Array.isArray(progress.badges) ? progress.badges : [];
+  const ladderIds = new Set(ladder.map((m) => m.id));
+  const passedList = Array.isArray(progress.passed) ? progress.passed : [];
   const starsMap = progress.stars && typeof progress.stars === 'object' ? progress.stars : {};
-  const passed = ladder.filter((m, i) => {
-    const next = ladder[i + 1];
-    if (next) return unlocked.includes(next.id);
-    return badgeList.includes('ladder_complete');
-  }).length;
+  const passed = passedList.filter((id) => ladderIds.has(id)).length;
   const stars = ladder.reduce((sum, m) => {
     const s = starsMap[m.id];
     return sum + (s ? [s.unlock, s.signature, s.high].filter(Boolean).length : 0);
@@ -384,10 +451,10 @@ export function addBadge(state, badgeId) {
 }
 
 /**
- * 結算一節挑戰並套用到 progress（個人最佳／解鎖／徽章／三星）——正常結算與
- * confirmPace（詢問區補確認）共用的唯一路徑，避免兩套邏輯漂移。
- * 冪等：unlockMenu / addBadge / updateBest 對已寫入的資料都是 no-op，重跑安全；
- * 星星 OR 合併同理——同一節重跑，newStars 全為 false。
+ * 結算一節挑戰並套用到 progress（個人最佳／通過記錄／解鎖／徽章／三星）——正常
+ * 結算與 confirmPace（詢問區補確認）共用的唯一路徑，避免兩套邏輯漂移。
+ * 冪等：markPassed / unlockMenu / addBadge / updateBest 對已寫入的資料都是
+ * no-op，重跑安全；星星 OR 合併同理——同一節重跑，newStars 全為 false。
  * @param {Object} state
  * @param {Object} session
  * @returns {{eligible:boolean, evalRes:Object, isNewBest:boolean, unlockedMenuId:string|null, badgeEarned:string|null, newBadges?:Array, stars?:Object, newStars?:Object}|null}
@@ -412,6 +479,9 @@ export function applyChallengeResult(state, session) {
     let unlockedMenuId = null;
     let badgeEarned = null;
     if (eligible && evalRes.pass) {
+      // 明確記錄「通過」（SPEC_M11 §4.1）：這是 progress.passed 唯一的寫入點，
+      // confirmPace() 補確認舊場次也會重跑到這裡，一樣會正確補記通過。
+      markPassed(state, menu.id);
       const next = nextMenuId(menu.id);
       if (next && unlockMenu(state, next)) {
         unlockedMenuId = next;

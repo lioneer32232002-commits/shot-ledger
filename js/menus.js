@@ -41,6 +41,22 @@
 // - lin_taiwan（國王 2024–25 TPBL）：雙來源＝TPBL 官網球員頁＋2024–25 新北國王
 //   賽季維基，2026-07-16 交叉核對一致。注意：2024 PLG FMVP 是李愷諺、非林書豪，
 //   文案不得寫 Lin 拿過 PLG FMVP（他的 MVP＋FMVP 雙料是 2024-25 TPBL 元年）。
+//
+// 2026-07-21 查證紀錄（SPEC_M11：挑戰階梯 13 → 15 關，插入 brunson／bird 兩關）：
+// - brunson（生涯 2018-19～2025-26，8 季）：雙來源＝ESPN 生涯數據頁
+//   espn.com/nba/player/stats/_/id/3934672/jalen-brunson ＋ landofbasketball
+//   landofbasketball.com/nba_players_stats/jalen_brunson_tot.htm，2026-07-21 交叉核對
+//   一致（FT 兩邊 82.6/82.7 屬四捨五入差異，取 82.6）。事蹟來源＝NBA.com
+//   nba.com/news/jalen-brunson-wins-bill-russell-trophy-as-2026-nba-finals-mvp ＋
+//   ESPN espn.com/nba/story/_/id/49056933/knicks-brunson-seals-finals-mvp-honors-45-points-game-5，
+//   fact 來源同上。basis 來源＝landonbuford.com 訓練報導（見下方 basis.url）。
+// - bird（生涯 1979–1992，13 季）：雙來源＝landofbasketball
+//   landofbasketball.com/nba_players_stats/larry_bird_tot.htm ＋ Wikipedia「Larry Bird」
+//   生涯數據表，2026-07-21 交叉核對一致。事蹟（FMVP 1984/1986、三分大賽 1986-88
+//   三連霸、生涯兩度 50-40-90）來源＝Wikipedia「NBA Three-Point Contest」＋「50–40–90
+//   club」。basis 來源＝Yahoo Sports 訓練報導（見下方 basis.url）。
+// ⚠️ 事實更正：使用者原提議的 Allen Iverson 沒有拿過 FMVP、也沒拿過總冠軍
+//   （2001 年他拿的是例行賽 MVP，該年 FMVP 是 Shaquille O'Neal），因此不列入階梯。
 
 export const MENUS = [
   {
@@ -184,7 +200,21 @@ export const MENUS = [
     },
   },
   {
-    id: 'lin_taiwan', name: 'Jeremy Lin 台灣時期', short: 'Lin 台灣', player: 'Jeremy Lin', playerStatus: 'retired', tier: 11,
+    id: 'brunson', name: 'Jalen Brunson 冠軍中距', short: 'Brunson 中距', player: 'Jalen Brunson', playerStatus: 'active', tier: 11,
+    focus: '腳步換空間的中距課：罰球線頂與兩翼反覆拉桿，切入收尾，罰球穩住', inspired: true, challenge: true,
+    passRule: [{ type: '2pt', minPct: 55 }, { type: 'ft', minPct: 80 }],
+    passDesc: '2 分 ≥55% 且罰球 ≥80%',
+    signature: { label: '第四節接管', desc: '最後 3 輪合計命中率 ≥60%' },
+    full: ['mid_top', 'mid_lw', 'ft', 'mid_rw', 'layup_l', 'mid_top', 'mid_lc', 'ft', 'mid_rc', 'layup_r', 'mid_top', 'mid_lw', 'ft', 'mid_rw', 'ft'],
+    est: { full: 75 },
+    career: { label: '生涯 2018–26', years: '2018–現役', fg: 48.5, tp: 38.5, ft: 82.6, tpm: 973, fact: '2026 年率尼克睽違 53 年奪冠，總冠軍賽 MVP 全票通過' },
+    basis: {
+      text: '取材自 Brunson 與訓練師 Dave Williams 以基本功為主的訓練（樞紐腳步、定點跳投、小拋投），這裡改編成自投自撿的中距定點版，非本人菜單',
+      source: 'Landon Buford', url: 'https://landonbuford.com/inside-the-training-lab-of-jalen-brunson-a-deep-dive-with-trainer-dave-williams/',
+    },
+  },
+  {
+    id: 'lin_taiwan', name: 'Jeremy Lin 台灣時期', short: 'Lin 台灣', player: 'Jeremy Lin', playerStatus: 'retired', tier: 12,
     focus: '深三＋切入終結的國王風格：logo shot 果斷出手，上籃左右開弓', inspired: true, challenge: true,
     passRule: [{ type: 'deep3', minPct: 32 }, { type: 'layup', minPct: 70 }],
     passDesc: '深 3 ≥32% 且上籃 ≥70%',
@@ -198,7 +228,7 @@ export const MENUS = [
     },
   },
   {
-    id: 'curry_mvp', name: 'Curry MVP 球季', short: 'Curry MVP', player: 'Stephen Curry', playerStatus: 'active', tier: 12,
+    id: 'curry_mvp', name: 'Curry MVP 球季', short: 'Curry MVP', player: 'Stephen Curry', playerStatus: 'active', tier: 13,
     focus: '由近而遠爬坡：中距→三分→深三，一趟一趟拉遠', inspired: true, challenge: true,
     passRule: [{ type: '3pt', minPct: 42 }],
     passDesc: '3 分 ≥42%',
@@ -212,7 +242,21 @@ export const MENUS = [
     },
   },
   {
-    id: 'curry', name: 'Curry 終極試煉', short: 'Curry 試煉', player: 'Stephen Curry', playerStatus: 'active', tier: 13,
+    id: 'bird', name: 'Larry Bird 全能射手', short: 'Bird 全能', player: 'Larry Bird', playerStatus: 'retired', tier: 14,
+    focus: '全點位射手課：五個三分點跑遍，中距補強，罰球線收尾', inspired: true, challenge: true,
+    passRule: [{ type: '3pt', minPct: 42 }, { type: 'ft', minPct: 85 }],
+    passDesc: '3 分 ≥42% 且罰球 ≥85%',
+    signature: { label: '50-40-90', desc: '同場 2 分 ≥50%、3 分 ≥40%、罰球 ≥90%' },
+    full: ['3pt_lc', 'mid_lw', 'ft', '3pt_lw', 'mid_top', '3pt_top', 'ft', '3pt_rw', 'mid_rw', '3pt_rc', 'ft', '3pt_top', 'mid_lc', '3pt_lw', 'ft'],
+    est: { full: 75 },
+    career: { years: '1979–1992', fg: 49.6, tp: 37.6, ft: 88.6, tpm: 649, fact: '史上第一位單季 50-40-90（生涯兩度），三分大賽 1986–88 三連霸' },
+    basis: {
+      text: '取材自 Bird 傳說級的自主投籃訓練量（每日數百顆跳投、賽前提早到場獨自投籃），全點位三分＋中距＋罰球的配置為本 App 設計，非本人菜單',
+      source: 'Yahoo Sports', url: 'https://sports.yahoo.com/article/myself-one-thousand-shots-anywhere-135659181.html',
+    },
+  },
+  {
+    id: 'curry', name: 'Curry 終極試煉', short: 'Curry 試煉', player: 'Stephen Curry', playerStatus: 'active', tier: 15,
     focus: '全三分點＋深三＋罰球綜合定點', inspired: true, challenge: true,
     passRule: [{ type: '3pt', minPct: 45 }, { type: 'deep3', minPct: 35 }],
     passDesc: '3 分 ≥45% 且深 3 ≥35%（全破＝獲得徽章）',

@@ -30,13 +30,13 @@ const SECTIONS = [
     n: '03',
     img: 'assets/home/home3.jpg',
     alt: '夕陽下，籃球正要落進籃框',
-    title: '13 關生涯階梯',
+    title: '15 關生涯階梯',
     body: '從 Lin 的哈佛時期一路到 Curry 的終極試煉，達標才解鎖下一關。菜單取材自公開報導的訓練風格。',
   },
 ];
 
 const ENTRIES = [
-  { menu: null, n: '01', title: '挑戰階梯', sub: '13 關生涯之路，一關一關解鎖', tag: 'LADDER' },
+  { menu: null, n: '01', title: '挑戰階梯', sub: '15 關生涯之路，一關一關解鎖', tag: 'LADDER' },
   { menu: 'free', n: '02', title: '自由練習', sub: '想投哪就投哪，不指定點位', tag: 'FREE' },
   { menu: 'world', n: '03', title: '綜合巡迴', sub: '全場繞一圈，各距離都練到', tag: 'TOUR' },
 ];

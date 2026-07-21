@@ -109,15 +109,14 @@ function formatDateSlash(d) {
   return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
 }
 
-/** 依 tier 順序，每一關的階梯格狀態：與 session.js 階梯頁的 passedIds 同一套判定
- *（下一關已解鎖才算「已通過」，末關看 ladder_complete 徽章）。 */
+/** 依 tier 順序，每一關的階梯格狀態：與 session.js 階梯頁同一套判定，通過讀
+ *  progress.passed 明確記錄（SPEC_M11 §4.1，不再用「下一關已解鎖」推導）。 */
 function buildLadderCells(state) {
   const ladder = ladderMenus();
   const unlockedIds = state.progress.unlocked;
-  return ladder.map((m, i) => {
-    const next = ladder[i + 1];
-    const passed = next ? unlockedIds.includes(next.id) : state.progress.badges.includes('ladder_complete');
-    if (passed) return 'passed';
+  const passedIds = Array.isArray(state.progress.passed) ? state.progress.passed : [];
+  return ladder.map((m) => {
+    if (passedIds.includes(m.id)) return 'passed';
     if (unlockedIds.includes(m.id)) return 'unlocked';
     return 'locked';
   });
