@@ -3,11 +3,16 @@
 // 拆兩層：buildCardData（純資料，可安全在其他模組重用）＋ drawCard（純畫圖，不碰 store）。
 // 本檔另外提供 openShareSheet 負責畫面（sheet 開合、分享／下載按鈕），是唯一碰 DOM 的入口。
 
-import { getMenu } from './menus.js';
+import { getMenu, ladderMenus } from './menus.js';
 import { SPOTS } from './court.js';
-import { aggregate, pct, sessionPct, isChallengeEligible, evaluatePassRule } from './stats.js';
+import {
+  aggregate, pct, sessionPct, isChallengeEligible, evaluatePassRule,
+  lifetimeTotals, streakDays, maxStreakDays, formatThousands,
+} from './stats.js';
+import { BADGE_TOTAL, ladderProgress, earnedBadgeList, starsCount, ICON_PATH } from './badges.js';
 import { setCardBg } from './store.js';
 // 注意：store.js 不 import 本檔，這裡反過來 import 它不會造成循環相依。
+// badges.js 只依賴 stats.js／menus.js（不 import sharecard.js），同理不會循環。
 
 const CARD_W = 1080;
 const CARD_H = 1350;
@@ -96,6 +101,73 @@ export function buildCardData(session, state) {
     heatSpots,
     achieved,
     personalBest,
+  };
+}
+
+/** M/D 起訖日期範圍字串（同 buildCardData 的 dateLabel 格式），單日時只顯示一個日期。 */
+function formatDateSlash(d) {
+  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+/** 依 tier 順序，每一關的階梯格狀態：與 session.js 階梯頁的 passedIds 同一套判定
+ *（下一關已解鎖才算「已通過」，末關看 ladder_complete 徽章）。 */
+function buildLadderCells(state) {
+  const ladder = ladderMenus();
+  const unlockedIds = state.progress.unlocked;
+  return ladder.map((m, i) => {
+    const next = ladder[i + 1];
+    const passed = next ? unlockedIds.includes(next.id) : state.progress.badges.includes('ladder_complete');
+    if (passed) return 'passed';
+    if (unlockedIds.includes(m.id)) return 'unlocked';
+    return 'locked';
+  });
+}
+
+/**
+ * 組出生涯成績分享卡要畫的純資料物件，不碰 DOM、不寫入 store（SPEC_M10 §2.4）。
+ * @param {Object} state 完整 store 狀態
+ * @param {Date} [now]
+ * @returns {Object}
+ */
+export function buildLifetimeCardData(state, now = new Date()) {
+  const sessions = state.sessions || [];
+
+  // rangeLabel：最早～最新場次的日期範圍；完全沒有任何場次時退回今天單一日期
+  // （0 球生涯理論上不會走到分享卡入口，這裡仍保底避免畫出空字串）。
+  let rangeLabel;
+  const startTimes = sessions
+    .map((s) => new Date(s.startedAt).getTime())
+    .filter((t) => !Number.isNaN(t));
+  if (startTimes.length === 0) {
+    rangeLabel = formatDateSlash(now);
+  } else {
+    const minD = new Date(Math.min(...startTimes));
+    const maxD = new Date(Math.max(...startTimes));
+    rangeLabel = startTimes.length === 1 || minD.getTime() === maxD.getTime()
+      ? formatDateSlash(minD)
+      : `${formatDateSlash(minD)} – ${formatDateSlash(maxD)}`;
+  }
+
+  const totals = lifetimeTotals(sessions);
+  const totalPct = pct(totals.mk, totals.att);
+  // 練習次數只算已結束的節；輪次含進行中的一節——與統計頁 renderLifetimeCard() 同一套算法。
+  const sessionCount = sessions.filter((s) => s.endedAt !== null).length;
+  const roundCount = sessions.reduce((sum, s) => sum + (s.rounds ? s.rounds.length : 0), 0);
+  const badgeList = earnedBadgeList(state);
+
+  return {
+    rangeLabel,
+    totalPct,
+    totalAtt: totals.att,
+    totalMk: totals.mk,
+    sessionCount,
+    roundCount,
+    streak: streakDays(sessions, now),
+    maxStreak: maxStreakDays(sessions),
+    ladder: ladderProgress(state),
+    ladderCells: buildLadderCells(state),
+    stars: starsCount(state),
+    badges: { list: badgeList, count: badgeList.length, total: BADGE_TOTAL },
   };
 }
 
@@ -308,19 +380,13 @@ function drawMiniCourt(ctx, heatSpots, ox, oy, scale, lineColor = COLORS.courtLi
 }
 
 /**
- * 純畫圖：把 buildCardData() 的資料畫進 canvas（會重設 canvas 尺寸為 1080x1350）。
- * @param {HTMLCanvasElement} canvas
- * @param {Object} data buildCardData() 的回傳值
- * @param {{photoImg?: HTMLImageElement|null}} [opts] opts.photoImg：使用者自訂照片背景，
- *   只存在記憶體（呼叫端自己管理），這裡純讀取、不落地存任何東西。無照片時輸出與紙感版一致。
+ * 卡片底圖＋色票（紙感 vs 照片，暗化漸層／浮水印圓環都在這裡）：單場卡與生涯卡
+ * 完全共用，抽出來只是搬程式碼，兩種卡的視覺輸出不得因此改變。
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {HTMLImageElement|null} photoImg
+ * @returns {Object} palette
  */
-export function drawCard(canvas, data, opts = {}) {
-  const photoImg = opts && opts.photoImg ? opts.photoImg : null;
-
-  canvas.width = CARD_W;
-  canvas.height = CARD_H;
-  const ctx = canvas.getContext('2d');
-
+function drawCardBackgroundAndPalette(ctx, photoImg) {
   // 照片模式：文字全面改亮色系，好在暗化後的照片上維持可讀；無照片時維持紙感亮色版原樣。
   // accent 在照片模式改亮橘（比深色主題 accent #F2691D 再亮半階），壓在照片上對比才夠；
   // 徽章改實心亮橘＋白字，取代看不清的半透明白底（SPEC M4.2 §5）。
@@ -389,6 +455,25 @@ export function drawCard(canvas, data, opts = {}) {
     ctx.stroke();
     ctx.restore();
   }
+
+  return palette;
+}
+
+/**
+ * 純畫圖：把 buildCardData() 的資料畫進 canvas（會重設 canvas 尺寸為 1080x1350）。
+ * @param {HTMLCanvasElement} canvas
+ * @param {Object} data buildCardData() 的回傳值
+ * @param {{photoImg?: HTMLImageElement|null}} [opts] opts.photoImg：使用者自訂照片背景，
+ *   只存在記憶體（呼叫端自己管理），這裡純讀取、不落地存任何東西。無照片時輸出與紙感版一致。
+ */
+export function drawCard(canvas, data, opts = {}) {
+  const photoImg = opts && opts.photoImg ? opts.photoImg : null;
+
+  canvas.width = CARD_W;
+  canvas.height = CARD_H;
+  const ctx = canvas.getContext('2d');
+
+  const palette = drawCardBackgroundAndPalette(ctx, photoImg);
 
   // -------------------------------------------------------------------------
   // 版面：顯式游標推進（SPEC M4.3 §3a，修垂直重疊 bug 的根因修正）。
@@ -597,6 +682,525 @@ export function drawCard(canvas, data, opts = {}) {
   ctx.textAlign = 'left';
 }
 
+/**
+ * 把 ICON_PATH[icon] 的內容畫到目前的變形座標系（呼叫端已 translate／scale 好，
+ * 這裡只管畫線）。ICON_PATH 的字面值是「拼在一起的 SVG 子元素字串」（給
+ * badges.js 的 iconSvg() 塞進 <svg> 用），不是單純的 path「d」屬性字串——例如
+ * ball 圖示混了一顆 <circle>，不能整包直接丟給 new Path2D() 當 d 用（那樣第一個
+ * 字元就是 '<'，會被判定成不合法路徑、整包靜默失效，什麼都畫不出來）。這裡借
+ * 一個暫時的 <svg> 節點把子元素解析出來，<path> 各自轉成 Path2D、<circle> 改用
+ * ctx.arc()，兩種都用同一支 stroke 樣式畫，才能正確重現全部四種圖示。
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {string} icon ICON_PATH 的 key
+ */
+function drawBadgeIconShape(ctx, icon) {
+  const temp = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  temp.innerHTML = ICON_PATH[icon] || '';
+  Array.from(temp.children).forEach((el) => {
+    if (el.tagName === 'path') {
+      const d = el.getAttribute('d');
+      if (d) ctx.stroke(new Path2D(d));
+    } else if (el.tagName === 'circle') {
+      const cx = parseFloat(el.getAttribute('cx'));
+      const cy = parseFloat(el.getAttribute('cy'));
+      const r = parseFloat(el.getAttribute('r'));
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  });
+}
+
+/**
+ * 畫一顆徽章獎章圓盤（生涯卡專用）：accent 8% 透明填底＋accent 2px 描邊，
+ * 圖示用 badges.js 的線條圖示置中畫在盤面上（視覺約 48px 見方，viewBox 是
+ * 0..24，scale=2 換算），畫完 restore 還原變形，不影響後續繪製。
+ * 圖示解析／繪製萬一失敗（極少數環境不支援 SVG DOM 或 Path2D），退化成畫一個
+ * accent 實心小圓點——徽章圖示壞了不能連累整張卡開天窗。
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {number} cx
+ * @param {number} cy
+ * @param {number} r 圓盤半徑
+ * @param {string} icon ICON_PATH 的 key
+ * @param {Object} palette drawCardBackgroundAndPalette() 的回傳值
+ */
+function drawBadgeMedal(ctx, cx, cy, r, icon, palette) {
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.globalAlpha = 0.08;
+  ctx.fillStyle = palette.accent;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = palette.accent;
+  ctx.stroke();
+
+  try {
+    const iconSize = 48; // 視覺目標尺寸；viewBox 是 24 單位，換算 scale k=2
+    const k = iconSize / 24;
+    ctx.save();
+    ctx.translate(cx - iconSize / 2, cy - iconSize / 2);
+    ctx.scale(k, k);
+    ctx.strokeStyle = palette.accent;
+    ctx.lineWidth = 1.7 / k;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    drawBadgeIconShape(ctx, icon);
+    ctx.restore();
+  } catch (err) {
+    ctx.beginPath();
+    ctx.fillStyle = palette.accent;
+    ctx.arc(cx, cy, 6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 生涯卡版面常數（驗收回饋修訂版：內容偏擠在上半部、底部留白過大，改成
+// 「先量測、再把剩餘空間灌回四個段落間隙」＋放大主要元素撐住視覺重心）。
+// ---------------------------------------------------------------------------
+const LT_MARGIN_X = 76;
+const LT_TOP_Y = 100;
+const LT_TITLE_SIZE = 52;
+const LT_PCT_SIZE = 190;
+const LT_DETAIL_SIZE = 34;
+const LT_ROW_SIZE = 30;
+const LT_ROW_PITCH_PAD = 30; // 右欄行距＝字高 + 30
+const LT_LADDER_CELL_H = 34;
+const LT_LADDER_CELL_R = 17;
+const LT_LADDER_CELL_GAP = 10;
+const LT_LADDER_SUMMARY_SIZE = 32;
+const LT_BADGE_LABEL_SIZE = 28;
+const LT_BADGE_DISC_MAX = 112;
+const LT_BADGE_DISC_MIN = 76; // 極端資料縮到底的下限（沿用舊版縮圓盤鐵律）
+const LT_BADGE_DISC_GAP = 24;
+const LT_BADGE_ROW_GAP = 24; // 兩列徽章之間的列距
+const LT_BADGE_PER_ROW = 7; // 7×112 + 6×24 = 928 剛好滿版（CARD_W - marginX*2）
+const LT_GAP_PCT_TO_DETAIL = 22;
+const LT_GAP_BRAND = 34; // 品牌列到標題：固定值，不參與剩餘空間分配
+const LT_GAP_TITLE_BASE = 30; // 標題到主數字帶（可分配）
+const LT_GAP_BAND_BASE = 44; // 主數字帶到挑戰階梯帶（可分配）
+const LT_GAP_LADDER_BASE = 44; // 挑戰階梯帶到徽章帶（可分配）
+const LT_GAP_BADGE_TO_URL_BASE = 34; // 徽章帶到網址的最小值（第四個「間隙」，靠網址固定貼底自然吸收剩餘空間）
+const LT_GAP_LADDER_LABEL_TO_BAR = 18;
+const LT_GAP_LADDER_BAR_TO_SUMMARY = 18;
+const LT_GAP_BADGE_LABEL_TO_ROW = 18;
+const LT_MAX_EXTRA_PER_GAP = 90; // 每個可分配間隙最多再加這麼多
+
+/**
+ * 排出徽章獎章列的座標（不畫圖，純算位置）：一列最多 7 顆，超過 7 顆分兩列，
+ * 最多顯示 13 顆實際圖示＋第 14 格＝「＋N」（總共最多 14 格，兩列 7+7）。
+ * N 的算法跟舊版「一列 8 格、前 7 顆＋第 8 格 +N」同一套邏輯類推
+ * （shown = 格數上限-1，N = 總數-shown），只是格數上限從 8 換成 14。
+ * @param {number} count 已獲得徽章數
+ * @param {number} discD 圓盤直徑
+ * @param {number} discGap 同列圓盤間距
+ * @param {number} rowGap 列與列的間距
+ * @param {number} marginX 左邊界
+ * @param {number} topY 第一列圓盤頂緣 y
+ * @returns {{rows: Array<Array<{cx:number, cy:number, type:('icon'|'plus'), index?:number}>>, height:number, numRows:number, plusN:number}}
+ */
+function layoutBadgeRows(count, discD, discGap, rowGap, marginX, topY) {
+  if (count <= 0) return { rows: [], height: 0, numRows: 0, plusN: 0 };
+
+  const showPlus = count > LT_BADGE_PER_ROW * 2; // >14
+  const iconsShown = showPlus ? LT_BADGE_PER_ROW * 2 - 1 : count; // showPlus 時只畫 13 顆圖示，第 14 格是 +N
+  const row1Count = Math.min(iconsShown, LT_BADGE_PER_ROW);
+  const row2IconCount = iconsShown - row1Count;
+  const numRows = row2IconCount > 0 || showPlus ? 2 : 1;
+
+  const rows = [];
+  const row1Cy = topY + discD / 2;
+  const row1 = [];
+  let cx = marginX + discD / 2;
+  for (let i = 0; i < row1Count; i++) {
+    row1.push({ cx, cy: row1Cy, type: 'icon', index: i });
+    cx += discD + discGap;
+  }
+  rows.push(row1);
+
+  if (numRows === 2) {
+    const row2Cy = topY + discD + rowGap + discD / 2;
+    const row2 = [];
+    cx = marginX + discD / 2;
+    for (let i = 0; i < row2IconCount; i++) {
+      row2.push({ cx, cy: row2Cy, type: 'icon', index: row1Count + i });
+      cx += discD + discGap;
+    }
+    if (showPlus) row2.push({ cx, cy: row2Cy, type: 'plus' });
+    rows.push(row2);
+  }
+
+  const height = numRows * discD + (numRows > 1 ? rowGap : 0);
+  const plusN = showPlus ? count - iconsShown : 0;
+  return { rows, height, numRows, plusN };
+}
+
+/**
+ * 生涯卡版面計算（純量測，不畫任何東西）：先用「基準間隙」跑一次游標算出內容
+ * 基準總高，量出離網址還剩多少 slack，再把 slack 平均灌回標題／主數字帶／
+ * 挑戰階梯帶後面的三個間隙（每個最多 +90，分配不完的自然留在徽章列到網址
+ * 之間，不強拉滿）；slack 為負（內容比卡片還高的極端資料）則不擴張間隙，
+ * 改縮徽章圓盤到最小 76px，絕不允許段落重疊。
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {Object} data buildLifetimeCardData() 的回傳值
+ * @returns {Object} 版面座標（供 paintLifetimeLayout 直接讀取繪製，不重算）
+ */
+function computeLifetimeLayout(ctx, data) {
+  const marginX = LT_MARGIN_X;
+
+  // ---- 品牌列（尺寸不變，量測手法同 drawCard）----
+  const brandFont = `800 32px ${FONT_FAMILY}`;
+  ctx.font = brandFont;
+  const brandTextWidth = ctx.measureText('SHOT LEDGER').width;
+  const brandBlockWidth = 44 + 18 + brandTextWidth;
+  const rangeMaxWidth = Math.max(CARD_W - marginX * 2 - brandBlockWidth - 24, 60);
+  const rangeSize = fitFontSize(ctx, data.rangeLabel, rangeMaxWidth, 30, 700);
+  const rangeFont = `700 ${rangeSize}px ${FONT_FAMILY}`;
+  const brandBaselineY = LT_TOP_Y + 36;
+  const brandTextMetrics = measureAscDesc(ctx, 'SHOT LEDGER', brandFont);
+  const rangeMetrics = measureAscDesc(ctx, data.rangeLabel, rangeFont);
+  const brandIconBottom = brandBaselineY + 8;
+  const brandBottom = Math.max(
+    brandIconBottom,
+    brandBaselineY + brandTextMetrics.desc,
+    brandBaselineY + rangeMetrics.desc
+  );
+
+  // ---- 標題 ----
+  const titleText = '生涯累計';
+  const titleSize = fitFontSize(ctx, titleText, CARD_W - marginX * 2, LT_TITLE_SIZE, 800);
+  const titleFont = `800 ${titleSize}px ${FONT_FAMILY}`;
+  const titleMetrics = measureAscDesc(ctx, titleText, titleFont);
+  const titleBaselineY = brandBottom + LT_GAP_BRAND + titleMetrics.asc;
+
+  // ---- 主數字帶：左欄高度、右欄高度與三欄錨點 ----
+  const pctLabel = data.totalPct === null ? '—' : `${data.totalPct}%`;
+  const pctFont = `800 ${LT_PCT_SIZE}px ${FONT_FAMILY}`;
+  const detailLabel = `${formatThousands(data.totalMk)} / ${formatThousands(data.totalAtt)} 投中`;
+  const detailFont = `700 ${LT_DETAIL_SIZE}px ${FONT_FAMILY}`;
+  const pctMetrics = measureAscDesc(ctx, pctLabel, pctFont);
+  const detailMetrics = measureAscDesc(ctx, detailLabel, detailFont);
+  const leftColH = pctMetrics.asc + pctMetrics.desc + LT_GAP_PCT_TO_DETAIL + detailMetrics.asc + detailMetrics.desc;
+
+  ctx.font = pctFont;
+  const widestPctW = ctx.measureText('100%').width;
+  const rightColX = marginX + widestPctW + 40;
+
+  const rowsData = [
+    { label: '練習', value: `${data.sessionCount}`, unit: '次' },
+    { label: '輪次', value: formatThousands(data.roundCount), unit: '輪' },
+    { label: '連續', value: `${data.streak}`, unit: '天' },
+    { label: '最長連續', value: `${data.maxStreak}`, unit: '天' },
+  ];
+  const rowFont = `700 ${LT_ROW_SIZE}px ${FONT_FAMILY}`;
+  const rowRef = measureAscDesc(ctx, '練習', rowFont);
+  const rowPitch = Math.ceil(rowRef.asc + rowRef.desc) + LT_ROW_PITCH_PAD;
+  const rightColH = rowRef.asc + (rowsData.length - 1) * rowPitch + rowRef.desc;
+
+  // 三欄錨點：label 左對齊 rightColX／數字右對齊 rightColX+valueAnchor／單位左對齊
+  // rightColX+unitAnchor。放大到 190px 後 rightColX 會右移，這裡用「最長連續」＋
+  // 5 位數字＋單位的最壞情境反推是否超出卡片右邊界，超出就把兩個錨點等量內縮。
+  ctx.font = rowFont;
+  const worstValueW = ctx.measureText('99999').width;
+  const worstUnitW = Math.max(
+    ctx.measureText('次').width,
+    ctx.measureText('輪').width,
+    ctx.measureText('天').width
+  );
+  let valueAnchor = 200;
+  let unitAnchor = 214;
+  const maxRight = CARD_W - marginX;
+  const neededRight = rightColX + unitAnchor + worstUnitW;
+  if (neededRight > maxRight) {
+    const shrink = neededRight - maxRight;
+    valueAnchor = Math.max(valueAnchor - shrink, worstValueW + 16);
+    unitAnchor = Math.max(unitAnchor - shrink, valueAnchor + 14);
+  }
+
+  const bandHeight = Math.max(leftColH, rightColH);
+
+  // ---- 挑戰階梯帶 ----
+  const ladderLabelFont = `700 28px ${FONT_FAMILY}`;
+  const ladderLabelMetrics = measureAscDesc(ctx, '挑戰階梯', ladderLabelFont);
+  const ladderSummaryText = `已通過 ${data.ladder.passed} / ${data.ladder.total} 關 ・ ★ ${data.stars.earned} / ${data.stars.total}`;
+  const ladderSummaryFont = `700 ${LT_LADDER_SUMMARY_SIZE}px ${FONT_FAMILY}`;
+  const ladderSummaryMetrics = measureAscDesc(ctx, ladderSummaryText, ladderSummaryFont);
+  const ladderBandHeight =
+    ladderLabelMetrics.asc + ladderLabelMetrics.desc +
+    LT_GAP_LADDER_LABEL_TO_BAR + LT_LADDER_CELL_H + LT_GAP_LADDER_BAR_TO_SUMMARY +
+    ladderSummaryMetrics.asc + ladderSummaryMetrics.desc;
+
+  // ---- 徽章帶：先用滿版 112px 圓盤試算高度，稍後依 slack 決定要不要縮 ----
+  const badgeLabelText = `徽章 ${data.badges.count} / ${data.badges.total}`;
+  const badgeLabelFont = `700 ${LT_BADGE_LABEL_SIZE}px ${FONT_FAMILY}`;
+  const badgeLabelMetrics = measureAscDesc(ctx, badgeLabelText, badgeLabelFont);
+  const badgeList = data.badges.list || [];
+
+  let badgeContentHeightMax = 0;
+  let emptyText = '';
+  let emptyFont = '';
+  let emptyMetrics = { asc: 0, desc: 0 };
+  if (badgeList.length === 0) {
+    emptyText = '還沒有徽章——連練 3 天就有第一顆';
+    emptyFont = `700 30px ${FONT_FAMILY}`;
+    emptyMetrics = measureAscDesc(ctx, emptyText, emptyFont);
+    badgeContentHeightMax = emptyMetrics.asc + emptyMetrics.desc;
+  } else {
+    badgeContentHeightMax = layoutBadgeRows(badgeList.length, LT_BADGE_DISC_MAX, LT_BADGE_DISC_GAP, LT_BADGE_ROW_GAP, marginX, 0).height;
+  }
+  const badgeBandHeightMax = badgeLabelMetrics.asc + badgeLabelMetrics.desc + LT_GAP_BADGE_LABEL_TO_ROW + badgeContentHeightMax;
+
+  // ---- 用基準間隙跑一次游標，量出「內容基準底部」----
+  const bandTopBase = titleBaselineY + titleMetrics.desc + LT_GAP_TITLE_BASE;
+  const ladderTopBase = bandTopBase + bandHeight + LT_GAP_BAND_BASE;
+  const badgeTopBase = ladderTopBase + ladderBandHeight + LT_GAP_LADDER_BASE;
+  const contentBottomBase = badgeTopBase + badgeBandHeightMax;
+
+  const urlBaselineY = CARD_H - 56;
+  const urlFont = `600 24px ${FONT_FAMILY}`;
+  const urlAsc = measureAscDesc(ctx, 'shot-ledger.pages.dev', urlFont).asc;
+  const target = urlBaselineY - urlAsc - LT_GAP_BADGE_TO_URL_BASE;
+  const slack = target - contentBottomBase;
+
+  // ---- 分配剩餘空間／或在資料極端時縮徽章圓盤，兩者互斥 ----
+  let extra = 0;
+  let discD = LT_BADGE_DISC_MAX;
+  if (slack >= 0) {
+    extra = Math.min(slack / 4, LT_MAX_EXTRA_PER_GAP);
+  } else if (badgeList.length > 0) {
+    const deficit = -slack;
+    const trial = layoutBadgeRows(badgeList.length, LT_BADGE_DISC_MAX, LT_BADGE_DISC_GAP, LT_BADGE_ROW_GAP, marginX, 0);
+    const floorHeight = trial.numRows * LT_BADGE_DISC_MIN + (trial.numRows > 1 ? LT_BADGE_ROW_GAP : 0);
+    const targetHeight = Math.max(floorHeight, trial.height - deficit);
+    discD = trial.numRows > 1 ? (targetHeight - LT_BADGE_ROW_GAP) / trial.numRows : targetHeight;
+    discD = Math.max(LT_BADGE_DISC_MIN, discD);
+  }
+
+  const titleGap = LT_GAP_TITLE_BASE + extra;
+  const bandGap = LT_GAP_BAND_BASE + extra;
+  const ladderGap = LT_GAP_LADDER_BASE + extra;
+
+  // ---- 用最終間隙／圓盤尺寸正式排出每一段的絕對座標 ----
+  const bandTop = titleBaselineY + titleMetrics.desc + titleGap;
+  const bigNumBaselineY = bandTop + pctMetrics.asc;
+  const detailBaselineY = bigNumBaselineY + pctMetrics.desc + LT_GAP_PCT_TO_DETAIL + detailMetrics.asc;
+  const rowFirstBaseline = bandTop + rowRef.asc;
+  const rows = rowsData.map((r, i) => ({ ...r, baselineY: rowFirstBaseline + i * rowPitch }));
+
+  const ladderTop = bandTop + bandHeight + bandGap;
+  const ladderLabelBaseline = ladderTop + ladderLabelMetrics.asc;
+  const ladderBarY = ladderLabelBaseline + ladderLabelMetrics.desc + LT_GAP_LADDER_LABEL_TO_BAR;
+  const ladderSummaryBaseline = ladderBarY + LT_LADDER_CELL_H + LT_GAP_LADDER_BAR_TO_SUMMARY + ladderSummaryMetrics.asc;
+
+  const badgeTop = ladderSummaryBaseline + ladderSummaryMetrics.desc + ladderGap;
+  const badgeLabelBaseline = badgeTop + badgeLabelMetrics.asc;
+  const badgeRowsTop = badgeLabelBaseline + badgeLabelMetrics.desc + LT_GAP_BADGE_LABEL_TO_ROW;
+
+  let badgeLayout = null;
+  let emptyBaseline = 0;
+  let badgeBottom = badgeRowsTop;
+  if (badgeList.length === 0) {
+    // badgeRowsTop 已經含 GAP_BADGE_LABEL_TO_ROW（小標到內容的固定間距），空狀態的
+    // 一行字就當作這一列的內容，直接用 badgeRowsTop 起筆即可，不能再扣掉一次間距
+    // （之前這裡誤扣，導致空狀態文字跟「徽章 0/N」小標黏在一起，幾乎零間距）。
+    emptyBaseline = badgeRowsTop + emptyMetrics.asc;
+    badgeBottom = emptyBaseline + emptyMetrics.desc;
+  } else {
+    badgeLayout = layoutBadgeRows(badgeList.length, discD, LT_BADGE_DISC_GAP, LT_BADGE_ROW_GAP, marginX, badgeRowsTop);
+    badgeBottom = badgeRowsTop + badgeLayout.height;
+  }
+
+  return {
+    marginX,
+    brand: { baselineY: brandBaselineY, font: brandFont, rangeFont, rangeText: data.rangeLabel },
+    title: { text: titleText, font: titleFont, baselineY: titleBaselineY },
+    band: {
+      pctLabel, pctFont, bigNumBaselineY,
+      detailLabel, detailFont, detailBaselineY,
+      rightColX, valueAnchor, unitAnchor, rowFont, rows,
+    },
+    ladder: {
+      labelFont: ladderLabelFont, labelBaseline: ladderLabelBaseline,
+      barY: ladderBarY, barH: LT_LADDER_CELL_H, cellGap: LT_LADDER_CELL_GAP, cellR: LT_LADDER_CELL_R,
+      cells: data.ladderCells || [],
+      summaryText: ladderSummaryText, summaryFont: ladderSummaryFont, summaryBaseline: ladderSummaryBaseline,
+    },
+    badges: {
+      labelText: badgeLabelText, labelFont: badgeLabelFont, labelBaseline: badgeLabelBaseline,
+      isEmpty: badgeList.length === 0,
+      emptyText, emptyFont, emptyBaseline,
+      discD, layout: badgeLayout, list: badgeList,
+    },
+    url: { baselineY: urlBaselineY, font: urlFont },
+    debug: {
+      brandBottom, bandTop, bandBottom: bandTop + bandHeight,
+      ladderTop, ladderBottom: ladderSummaryBaseline + ladderSummaryMetrics.desc,
+      badgeTop, badgeRowsTop, badgeBottom,
+      urlTextTop: urlBaselineY - urlAsc,
+      gapBadgeToUrl: (urlBaselineY - urlAsc) - badgeBottom,
+      slack, extra, discD,
+    },
+  };
+}
+
+/**
+ * 純畫圖：依 computeLifetimeLayout() 算好的座標把 buildLifetimeCardData() 的資料
+ * 畫進 canvas（不重算任何位置，只管 fillText／stroke／fill）。
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {Object} layout computeLifetimeLayout() 的回傳值
+ * @param {Object} palette drawCardBackgroundAndPalette() 的回傳值
+ */
+function paintLifetimeLayout(ctx, layout, palette) {
+  const { marginX } = layout;
+
+  // 1. 品牌列
+  drawBrandMark(ctx, marginX, layout.brand.baselineY, palette.text);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = palette.muted;
+  ctx.font = layout.brand.rangeFont;
+  ctx.fillText(layout.brand.rangeText, CARD_W - marginX, layout.brand.baselineY);
+  ctx.textAlign = 'left';
+
+  // 2. 標題
+  ctx.fillStyle = palette.text;
+  ctx.font = layout.title.font;
+  ctx.fillText(layout.title.text, marginX, layout.title.baselineY);
+
+  // 3. 主數字帶
+  const b = layout.band;
+  if (palette.pctShadow) {
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+    ctx.shadowBlur = 12;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+  }
+  ctx.fillStyle = palette.accent;
+  ctx.font = b.pctFont;
+  ctx.fillText(b.pctLabel, marginX, b.bigNumBaselineY);
+  if (palette.pctShadow) {
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+  }
+  ctx.fillStyle = palette.muted;
+  ctx.font = b.detailFont;
+  ctx.fillText(b.detailLabel, marginX, b.detailBaselineY);
+
+  ctx.font = b.rowFont;
+  b.rows.forEach((row) => {
+    ctx.fillStyle = palette.text;
+    ctx.textAlign = 'left';
+    ctx.fillText(row.label, b.rightColX, row.baselineY);
+    ctx.textAlign = 'right';
+    ctx.fillText(row.value, b.rightColX + b.valueAnchor, row.baselineY);
+    ctx.textAlign = 'left';
+    ctx.fillText(row.unit, b.rightColX + b.unitAnchor, row.baselineY);
+  });
+  ctx.textAlign = 'left';
+
+  // 4. 挑戰階梯帶
+  const l = layout.ladder;
+  ctx.fillStyle = palette.muted;
+  ctx.font = l.labelFont;
+  ctx.fillText('挑戰階梯', marginX, l.labelBaseline);
+
+  const barW = CARD_W - marginX * 2;
+  if (l.cells.length > 0) {
+    const cellW = (barW - l.cellGap * (l.cells.length - 1)) / l.cells.length;
+    let cx = marginX;
+    l.cells.forEach((cellState) => {
+      roundRectPath(ctx, cx, l.barY, cellW, l.barH, l.cellR);
+      if (cellState === 'passed') {
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = palette.accent;
+      } else if (cellState === 'unlocked') {
+        ctx.globalAlpha = 0.3;
+        ctx.fillStyle = palette.accent;
+      } else {
+        ctx.globalAlpha = 0.35;
+        ctx.fillStyle = palette.courtLine;
+      }
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      cx += cellW + l.cellGap;
+    });
+  }
+
+  ctx.fillStyle = palette.text;
+  ctx.font = l.summaryFont;
+  ctx.fillText(l.summaryText, marginX, l.summaryBaseline);
+
+  // 5. 徽章帶
+  const bg = layout.badges;
+  ctx.fillStyle = palette.muted;
+  ctx.font = bg.labelFont;
+  ctx.fillText(bg.labelText, marginX, bg.labelBaseline);
+
+  if (bg.isEmpty) {
+    ctx.fillStyle = palette.muted;
+    ctx.font = bg.emptyFont;
+    ctx.fillText(bg.emptyText, marginX, bg.emptyBaseline);
+  } else {
+    const r = bg.discD / 2;
+    bg.layout.rows.forEach((row) => {
+      row.forEach((cell) => {
+        if (cell.type === 'plus') {
+          ctx.beginPath();
+          ctx.arc(cell.cx, cell.cy, r, 0, Math.PI * 2);
+          ctx.globalAlpha = 0.08;
+          ctx.fillStyle = palette.accent;
+          ctx.fill();
+          ctx.globalAlpha = 1;
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = palette.accent;
+          ctx.stroke();
+
+          ctx.font = `800 34px ${FONT_FAMILY}`;
+          ctx.fillStyle = palette.accent;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(`＋${bg.layout.plusN}`, cell.cx, cell.cy);
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'alphabetic';
+        } else {
+          drawBadgeMedal(ctx, cell.cx, cell.cy, r, bg.list[cell.index].icon, palette);
+        }
+      });
+    });
+  }
+
+  // 6. 底部：網址（固定貼底，跟單場卡一致）
+  ctx.textAlign = 'center';
+  ctx.fillStyle = palette.muted;
+  ctx.font = layout.url.font;
+  ctx.fillText('shot-ledger.pages.dev', CARD_W / 2, layout.url.baselineY);
+  ctx.textAlign = 'left';
+}
+
+/**
+ * 純畫圖：把 buildLifetimeCardData() 的資料畫進生涯成績分享卡 canvas（SPEC_M10 §2.5，
+ * 1080×1350，驗收回饋修訂版）。版面計算（computeLifetimeLayout）與實際繪製
+ * （paintLifetimeLayout）分離：先量測所有段落的高度，把離網址還剩的空間平均
+ * 灌回幾個段落間隙，讓內容站滿整張卡、不再擠在上半部；量測與繪製共用同一份
+ * 座標，不會兩邊算出不一致的位置。
+ * @param {HTMLCanvasElement} canvas
+ * @param {Object} data buildLifetimeCardData() 的回傳值
+ * @param {{photoImg?: HTMLImageElement|null}} [opts]
+ */
+export function drawLifetimeCard(canvas, data, opts = {}) {
+  const photoImg = opts && opts.photoImg ? opts.photoImg : null;
+
+  canvas.width = CARD_W;
+  canvas.height = CARD_H;
+  const ctx = canvas.getContext('2d');
+
+  const palette = drawCardBackgroundAndPalette(ctx, photoImg);
+  const layout = computeLifetimeLayout(ctx, data);
+  paintLifetimeLayout(ctx, layout, palette);
+}
+
 // ---------------------------------------------------------------------------
 // 分享 sheet（唯一碰 DOM 的入口）：全螢幕預覽＋分享／下載／關閉
 // ---------------------------------------------------------------------------
@@ -634,13 +1238,22 @@ function normalizeCardBg(value) {
  * @param {Object} state 完整 store 狀態（呼叫端傳進來的就是完整 store 狀態，
  *   這裡直接讀 state.settings.cardBg、直接呼叫 setCardBg(state, ...) 持久化）
  */
-export function openShareSheet(session, state) {
-  const data = buildCardData(session, state);
+/**
+ * 共用的分享卡 sheet（SPEC_M10 §2.2）：底圖選擇列／預覽／分享／下載／關閉，
+ * 從原本 openShareSheet 抽出，單場卡與生涯卡完全共用同一份行為，重構不得
+ * 改變單場卡的任何輸出。
+ * @param {Object} opts
+ * @param {Object} opts.state 完整 store 狀態（讀 settings.cardBg、寫入 setCardBg 持久化）
+ * @param {string} opts.title sheet 標題（分享成績卡／分享生涯成績卡）
+ * @param {string} opts.filename 下載／分享檔名
+ * @param {(canvas: HTMLCanvasElement, opts: {photoImg: HTMLImageElement|null}) => void} opts.draw
+ *   純畫圖回呼，由呼叫端把 buildCardData()／buildLifetimeCardData() 的資料綁進閉包。
+ */
+function openCardSheet({ state, title, filename, draw }) {
   const canvas = document.createElement('canvas');
-  const filename = `shotledger-card-${formatFilenameDate(session.startedAt)}.png`;
 
   // 底圖狀態：selected 是目前選中的 tile 值（'paper'｜'bg1'..'bg5'｜'custom'）；
-  // photoImg 是實際餵給 drawCard 的圖片來源（null＝紙感）。bundled 底圖直接
+  // photoImg 是實際餵給 draw() 的圖片來源（null＝紙感）。bundled 底圖直接
   // 複用選擇列 tile 自己的 <img> 元素當畫布來源，不必另開 Image()／Map 快取——
   // tile 在整個 sheet 開啟期間都留在 DOM 裡，天生就是「切換回來不重載」。
   // 自訂照片只存在這個閉包的記憶體裡（Image 物件＋blob URL），不進
@@ -663,7 +1276,7 @@ export function openShareSheet(session, state) {
   backdrop.className = 'sheet-backdrop share-sheet-backdrop';
   backdrop.innerHTML = `
     <div class="sheet share-sheet">
-      <h3 class="sheet__title">分享成績卡</h3>
+      <h3 class="sheet__title">${title}</h3>
       <div class="share-sheet__preview">
         <img alt="成績分享卡預覽" />
       </div>
@@ -812,7 +1425,7 @@ export function openShareSheet(session, state) {
   }
 
   function render() {
-    drawCard(canvas, data, { photoImg });
+    draw(canvas, { photoImg });
     refreshOutputs();
   }
 
@@ -895,5 +1508,41 @@ export function openShareSheet(session, state) {
   closeBtn.addEventListener('click', close);
   backdrop.addEventListener('click', (e) => {
     if (e.target === backdrop) close();
+  });
+}
+
+/**
+ * 開啟成績分享卡的全螢幕 sheet：畫卡片預覽＋提供分享／下載／關閉，
+ * 另外可從底圖選擇列切換內建 5 張照片、紙感、或自己的照片。
+ * @param {Object} session
+ * @param {Object} state 完整 store 狀態（呼叫端傳進來的就是完整 store 狀態，
+ *   這裡直接讀 state.settings.cardBg、直接呼叫 setCardBg(state, ...) 持久化）
+ */
+export function openShareSheet(session, state) {
+  const data = buildCardData(session, state);
+  const filename = `shotledger-card-${formatFilenameDate(session.startedAt)}.png`;
+  openCardSheet({
+    state,
+    title: '分享成績卡',
+    filename,
+    draw: (canvas, opts) => drawCard(canvas, data, opts),
+  });
+}
+
+/**
+ * 開啟生涯成績分享卡的全螢幕 sheet（SPEC_M10 §2.2）：資料換成
+ * buildLifetimeCardData()、畫圖換成 drawLifetimeCard()，底圖選擇列／分享／
+ * 下載／關閉跟單場卡完全共用同一顆 openCardSheet。
+ * @param {Object} state 完整 store 狀態
+ * @param {Date} [now]
+ */
+export function openLifetimeShareSheet(state, now = new Date()) {
+  const data = buildLifetimeCardData(state, now);
+  const filename = `shotledger-career-${formatFilenameDate(now)}.png`;
+  openCardSheet({
+    state,
+    title: '分享生涯成績卡',
+    filename,
+    draw: (canvas, opts) => drawLifetimeCard(canvas, data, opts),
   });
 }

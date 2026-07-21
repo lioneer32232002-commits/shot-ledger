@@ -5,12 +5,14 @@
 import * as store from './store.js';
 import { renderCourt } from './court.js';
 import {
-  aggregate, pct, sessionsInRange, pctSeries, calendarCells, avgRoundCurve, earlyLateSplit, weekAttempts,
-  lifetimeTotals,
+  aggregate, pct, sessionsInRange, pctSeries, calendarCells, avgRoundCurve, weekAttempts,
+  lifetimeTotals, sessionRoundSeries, roundHalfSplit,
 } from './stats.js';
 import { formatThousands } from './session.js';
 import { badgeWallHtml } from './badges.js';
 import { pageBannerHtml } from './pagebanner.js';
+import { getMenu } from './menus.js';
+import { openLifetimeShareSheet } from './sharecard.js';
 
 const PERIODS = [
   { key: '7', label: '7 天', days: 7 },
@@ -36,6 +38,9 @@ let periodKey = '30';
 let typeKey = 'all';
 let goalSheetOpen = false;
 let goalCustomValue = '';
+// 疲勞趨勢「單場逐輪」目前選中的場次索引（0＝最近一場，往舊遞增），SPEC_M10 §1.1：
+// 切換期間／球種 chip 重繪、或 mount() 時都要歸 0。
+let fatigueIdx = 0;
 
 export function mount(container) {
   root = container;
@@ -44,6 +49,7 @@ export function mount(container) {
   typeKey = 'all';
   goalSheetOpen = false;
   goalCustomValue = '';
+  fatigueIdx = 0;
   render();
   root.addEventListener('click', onStatsClick);
 }
@@ -121,7 +127,10 @@ function renderLifetimeCard() {
 
   return `
     <section class="lifetime-card">
-      <h2 class="section-title">生涯累計</h2>
+      <div class="lifetime-card__head">
+        <h2 class="section-title">生涯累計</h2>
+        ${lifetime.att === 0 ? '' : `<button type="button" class="lifetime-card__share" data-action="share-lifetime">分享</button>`}
+      </div>
       <div class="lifetime-card__totals">
         <div class="lifetime-card__total"><div class="lifetime-card__num">${formatThousands(lifetime.att)}</div><div class="lifetime-card__label">總投</div></div>
         <div class="lifetime-card__total"><div class="lifetime-card__num">${formatThousands(lifetime.mk)}</div><div class="lifetime-card__label">總中</div></div>
@@ -456,9 +465,135 @@ function renderAvgRoundCurveChart(curve) {
   `;
 }
 
+/**
+ * 單場逐輪折線圖（SPEC_M10 §1.2）：幾何與 class 照抄 renderAvgRoundCurveChart，
+ * 差別是資料換成單場的每輪實際命中率、前後段分界改成該場輪次的前半／後半交界，
+ * 且 attempts===0 的輪（pct===null）不畫點、折線在該處斷開（分段 path，不用 0 值假裝有資料）。
+ */
+function renderSessionRoundChart(series) {
+  const W = 320;
+  const H = 150;
+  const padL = 30;
+  const padR = 12;
+  const padT = 14;
+  const padB = 24;
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+  const n = series.length;
+
+  const xAt = (i) => padL + (n === 1 ? plotW / 2 : (i / (n - 1)) * plotW);
+  const yAt = (p) => padT + (1 - p / 100) * plotH;
+
+  // 前後段分界＝前半／後半輪的交界（該場叫用端已保證 n>=2，half-1／half 一定是合法索引）。
+  const half = Math.ceil(n / 2);
+  const boundaryX = (xAt(half - 1) + xAt(half)) / 2;
+  const bandsMarkup = `
+    <rect x="${padL}" y="${padT}" width="${(boundaryX - padL).toFixed(1)}" height="${plotH}" class="round-chart__band round-chart__band--early" />
+    <rect x="${boundaryX.toFixed(1)}" y="${padT}" width="${(W - padR - boundaryX).toFixed(1)}" height="${plotH}" class="round-chart__band round-chart__band--late" />
+  `;
+
+  // 0 出手的輪 pct===null：不畫點、折線斷開——用「是否正在畫一段」的旗標分段組 path，
+  // 而不是把 null 當 0 硬接上去（那樣會偽造出一個假的谷底）。
+  let pathD = '';
+  let drawing = false;
+  const dotsMarkup = [];
+  series.forEach((r, i) => {
+    if (r.pct === null) {
+      drawing = false;
+      return;
+    }
+    const x = xAt(i);
+    const y = yAt(r.pct);
+    pathD += `${drawing ? ' L' : (pathD ? ' M' : 'M')} ${x.toFixed(1)} ${y.toFixed(1)}`;
+    drawing = true;
+    dotsMarkup.push(`<circle class="pct-chart__dot" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4" />`);
+  });
+
+  const maxLabels = Math.min(6, n);
+  const step = Math.max(1, Math.round((n - 1) / Math.max(1, maxLabels - 1)));
+  const labelIdxs = [];
+  for (let i = 0; i < n; i += step) labelIdxs.push(i);
+  if (labelIdxs[labelIdxs.length - 1] !== n - 1) labelIdxs.push(n - 1);
+  const labelsMarkup = labelIdxs
+    .map((i) => `<text x="${xAt(i).toFixed(1)}" y="${H - 6}" class="pct-chart__x-label" text-anchor="middle">#${i + 1}</text>`)
+    .join('');
+
+  return `
+    <svg class="pct-chart round-chart" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+      ${bandsMarkup}
+      <path d="${pathD}" class="pct-chart__line" fill="none" />
+      ${dotsMarkup.join('')}
+      ${labelsMarkup}
+    </svg>
+  `;
+}
+
+/** 前後半命中率差，格式化成帶正負號的 pp 字串（±0pp／+3pp／-14pp）。 */
+function formatDiffPp(diff) {
+  if (diff > 0) return `+${diff}pp`;
+  if (diff < 0) return `${diff}pp`;
+  return '±0pp';
+}
+
+/** 挑戰菜單場次（easy／full 都算）、且輪數 >=2，才有意義畫「單場逐輪」（SPEC_M10 §1.1）。 */
+function challengeSessionsInRange(inRange) {
+  return inRange
+    .filter((s) => {
+      const menu = getMenu(s.mode);
+      return !!menu && menu.challenge === true && s.rounds && s.rounds.length >= 2;
+    })
+    .slice()
+    .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
+}
+
+/** 場次切換列＋逐輪圖＋摘要句（SPEC_M10 §1.1〜§1.3）。fatigueIdx 越界時夾回範圍內。 */
+function renderSessionRoundBlock(sessions) {
+  if (sessions.length === 0) {
+    return `<p class="stats-empty-note">這段期間還沒有挑戰紀錄——去挑戰階梯打一場吧</p>`;
+  }
+
+  if (fatigueIdx >= sessions.length) fatigueIdx = sessions.length - 1;
+  if (fatigueIdx < 0) fatigueIdx = 0;
+
+  const n = sessions.length;
+  const k = fatigueIdx + 1;
+  const session = sessions[fatigueIdx];
+  const menu = getMenu(session.mode);
+  const d = new Date(session.startedAt);
+  const dateLabel = `${d.getMonth() + 1}/${d.getDate()}`;
+  const variantSuffix = session.variant === 'easy' ? '・簡易' : '';
+  const titleText = `${menu ? menu.name : session.mode}${variantSuffix} · ${dateLabel}`;
+  const prevDisabled = fatigueIdx >= n - 1; // 已經是最舊一場，'‹' 不能再往舊
+  const nextDisabled = fatigueIdx <= 0; // 已經是最近一場，'›' 不能再往新
+
+  const series = sessionRoundSeries(session);
+
+  let summaryHtml = '';
+  if (session.rounds.length >= 4) {
+    const split = roundHalfSplit(session.rounds);
+    if (split) {
+      const eP = split.early.pct;
+      const lP = split.late.pct;
+      summaryHtml = eP === null || lP === null
+        ? `<p class="fatigue-summary nowrap">前 ${split.early.rounds} 輪 —，後 ${split.late.rounds} 輪 —</p>`
+        : `<p class="fatigue-summary nowrap">前 ${split.early.rounds} 輪 ${eP}%，後 ${split.late.rounds} 輪 ${lP}%（${formatDiffPp(lP - eP)}）</p>`;
+    }
+  }
+
+  return `
+    <div class="fatigue-nav">
+      <button type="button" class="fatigue-nav__btn" data-action="fatigue-prev" ${prevDisabled ? 'disabled' : ''} aria-label="較舊場次">‹</button>
+      <span class="fatigue-nav__title nowrap">${titleText}</span>
+      <button type="button" class="fatigue-nav__btn" data-action="fatigue-next" ${nextDisabled ? 'disabled' : ''} aria-label="較新場次">›</button>
+    </div>
+    <p class="fatigue-nav__count">第 ${k} / ${n} 場</p>
+    ${renderSessionRoundChart(series)}
+    ${summaryHtml}
+  `;
+}
+
 function renderFatigueSection(period, now) {
   const inRange = sessionsInRange(state.sessions, period.days, now);
-  const rounds = inRange.flatMap((s) => s.rounds || []);
   const curve = avgRoundCurve(inRange);
 
   let curveBlock;
@@ -475,28 +610,7 @@ function renderFatigueSection(period, now) {
     `;
   }
 
-  const split = earlyLateSplit(rounds);
-  let splitBlock;
-  if (!split) {
-    splitBlock = `<p class="stats-empty-note">用逐球輸入記錄，就能看出每輪前後段的差異</p>`;
-  } else {
-    const eP = pct(split.early.mk, split.early.att);
-    const lP = pct(split.late.mk, split.late.att);
-    splitBlock = `
-      <div class="split-row">
-        <div class="split-col">
-          <span class="split-col__label">前半</span>
-          <span class="split-col__pct">${eP === null ? '—' : eP + '%'}</span>
-          <span class="split-col__score nowrap">${split.early.mk}/${split.early.att}</span>
-        </div>
-        <div class="split-col">
-          <span class="split-col__label">後半</span>
-          <span class="split-col__pct">${lP === null ? '—' : lP + '%'}</span>
-          <span class="split-col__score nowrap">${split.late.mk}/${split.late.att}</span>
-        </div>
-      </div>
-    `;
-  }
+  const challengeSessions = challengeSessionsInRange(inRange);
 
   return `
     <section class="stats-block">
@@ -506,8 +620,8 @@ function renderFatigueSection(period, now) {
         ${curveBlock}
       </div>
       <div class="stats-subsection">
-        <h3 class="stats-subtitle">逐球前後段</h3>
-        ${splitBlock}
+        <h3 class="stats-subtitle">單場逐輪</h3>
+        ${renderSessionRoundBlock(challengeSessions)}
       </div>
     </section>
   `;
@@ -528,6 +642,7 @@ function onStatsClick(e) {
   const periodBtn = e.target.closest('[data-period]');
   if (periodBtn) {
     periodKey = periodBtn.dataset.period;
+    fatigueIdx = 0; // SPEC_M10 §1.1：切換期間，單場逐輪回到最近一場
     render();
     return;
   }
@@ -535,6 +650,7 @@ function onStatsClick(e) {
   const typeBtn = e.target.closest('[data-type]');
   if (typeBtn) {
     typeKey = typeBtn.dataset.type;
+    fatigueIdx = 0; // SPEC_M10 §1.1：切換球種 chip 重繪，單場逐輪回到最近一場
     render();
     return;
   }
@@ -570,6 +686,20 @@ function onStatsClick(e) {
   if (action === 'turn-off-goal') {
     store.setWeeklyGoal(state, null);
     goalSheetOpen = false;
+    render();
+    return;
+  }
+  if (action === 'share-lifetime') {
+    openLifetimeShareSheet(state);
+    return;
+  }
+  if (action === 'fatigue-prev') {
+    fatigueIdx += 1; // '‹' 往較舊場次
+    render();
+    return;
+  }
+  if (action === 'fatigue-next') {
+    fatigueIdx -= 1; // '›' 往較新場次
     render();
     return;
   }

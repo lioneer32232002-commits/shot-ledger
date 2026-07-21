@@ -51,9 +51,15 @@ const BADGE_DEFS = [
   { id: 'ladder_complete', icon: 'trophy', kind: 'ladder', target: null, capstone: true },
 ];
 
+// 徽章總數（生涯分享卡「徽章 N / 總數」要用）：直接量 BADGE_DEFS 長度，
+// 徽章家族之後再擴充，這裡不用跟著手動改數字。
+export const BADGE_TOTAL = BADGE_DEFS.length;
+
 // 線條圖示（火焰＝連續、籃球＝投量、星星＝摘星、獎盃＝階梯），stroke 走
 // currentColor 讓獲得／未獲得直接由文字色帶動，深淺色主題都成立。
-const ICON_PATH = {
+// export：生涯分享卡（sharecard.js）要用同一套線條圖示在 canvas 上用 Path2D 畫獎章，
+// 不能讓分享卡另刻一份圖示、跟徽章牆的視覺漂移。
+export const ICON_PATH = {
   flame: '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
   ball: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3v18"/><path d="M5.4 5.6c3.6 3.6 3.6 9.2 0 12.8M18.6 5.6c-3.6 3.6-3.6 9.2 0 12.8"/>',
   star: '<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9L12 3Z"/>',
@@ -64,9 +70,11 @@ function iconSvg(icon, cls) {
   return `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATH[icon] || ICON_PATH.trophy}</svg>`;
 }
 
-// 階梯已通過關數（全破徽章的進度）：通過的定義＝下一關已解鎖、末關看
-// ladder_complete 徽章，與 session.js 階梯頁的 passedIds 同一套判定。
-function passedLadderCount(state) {
+// 階梯已通過關數（全破徽章的進度、生涯分享卡的「已通過 N/M 關」都用它）：通過的
+// 定義＝下一關已解鎖、末關看 ladder_complete 徽章，與 session.js 階梯頁的
+// passedIds 同一套判定。export 給 sharecard.js 用（原名 passedLadderCount 改名，
+// 呼叫端跟著改）。
+export function ladderProgress(state) {
   const ladder = ladderMenus();
   const passed = ladder.filter((m, i) => {
     const next = ladder[i + 1];
@@ -74,6 +82,21 @@ function passedLadderCount(state) {
     return state.progress.badges.includes('ladder_complete');
   }).length;
   return { passed, total: ladder.length };
+}
+
+/**
+ * 已獲得徽章清單，依 BADGE_DEFS 固定順序（不是取得順序）——生涯分享卡要照牆上的
+ * 順序畫獎章，跟徽章牆的排列邏輯一致。
+ * @param {Object} state
+ * @returns {Array<{id:string, icon:string, label:string}>}
+ */
+export function earnedBadgeList(state) {
+  const badges = state.progress.badges;
+  return BADGE_DEFS.filter((def) => badges.includes(def.id)).map((def) => ({
+    id: def.id,
+    icon: def.icon,
+    label: BADGE_LABEL[def.id] || def.id,
+  }));
 }
 
 /** 三星制總覽（統計頁資料狀態列也用）：total 動態算（關數 × 3），不寫死。 */
@@ -93,7 +116,7 @@ function badgeStatus(state, now) {
   const badges = state.progress.badges;
   const streak = streakDays(state.sessions, now);
   const totalShots = totalAttempts(state.sessions);
-  const ladder = passedLadderCount(state);
+  const ladder = ladderProgress(state);
   const stars = starsCount(state);
 
   return BADGE_DEFS.map((def) => {

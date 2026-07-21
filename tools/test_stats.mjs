@@ -8,6 +8,7 @@ import {
   equivalentTier, lifetimeTotals,
   sessionsInRange, pctSeries, calendarCells, avgRoundCurve, weekAttempts,
   challengeForecast, maxStreakDays, computeBadges,
+  sessionRoundSeries, roundHalfSplit,
 } from '../js/stats.js';
 
 let passed = 0;
@@ -223,6 +224,68 @@ test('多輪有 seq 會累加', () => {
   const r = earlyLateSplit(rounds);
   assert.deepEqual(r.early, { att: 4, mk: 3 });
   assert.deepEqual(r.late, { att: 4, mk: 3 });
+});
+
+console.log('sessionRoundSeries()');
+
+test('空 rounds 回傳空陣列', () => {
+  assert.deepEqual(sessionRoundSeries({ rounds: [] }), []);
+  assert.deepEqual(sessionRoundSeries({}), []);
+});
+
+test('依輪次順序回傳 {round,att,mk,pct}，attempts=0 的輪 pct 為 null', () => {
+  const session = {
+    rounds: [
+      { attempts: 10, makes: 6 },
+      { attempts: 0, makes: 0 },
+      { attempts: 8, makes: 2 },
+    ],
+  };
+  assert.deepEqual(sessionRoundSeries(session), [
+    { round: 1, att: 10, mk: 6, pct: 60 },
+    { round: 2, att: 0, mk: 0, pct: null },
+    { round: 3, att: 8, mk: 2, pct: 25 },
+  ]);
+});
+
+console.log('roundHalfSplit()');
+
+test('輪數 < 2 回傳 null', () => {
+  assert.equal(roundHalfSplit([]), null);
+  assert.equal(roundHalfSplit([{ attempts: 10, makes: 5 }]), null);
+});
+
+test('偶數輪：前後對半分', () => {
+  const rounds = [
+    { attempts: 10, makes: 8 },
+    { attempts: 10, makes: 6 },
+    { attempts: 10, makes: 4 },
+    { attempts: 10, makes: 2 },
+  ];
+  const r = roundHalfSplit(rounds);
+  assert.deepEqual(r.early, { att: 20, mk: 14, rounds: 2, pct: 70 });
+  assert.deepEqual(r.late, { att: 20, mk: 6, rounds: 2, pct: 30 });
+});
+
+test('奇數輪：中間那一輪算前半', () => {
+  const rounds = [
+    { attempts: 10, makes: 8 },
+    { attempts: 10, makes: 6 },
+    { attempts: 10, makes: 4 },
+  ];
+  const r = roundHalfSplit(rounds);
+  assert.deepEqual(r.early, { att: 20, mk: 14, rounds: 2, pct: 70 });
+  assert.deepEqual(r.late, { att: 10, mk: 4, rounds: 1, pct: 40 });
+});
+
+test('該半段所有輪 attempts=0 時 pct 為 null', () => {
+  const rounds = [
+    { attempts: 0, makes: 0 },
+    { attempts: 10, makes: 5 },
+  ];
+  const r = roundHalfSplit(rounds);
+  assert.deepEqual(r.early, { att: 0, mk: 0, rounds: 1, pct: null });
+  assert.deepEqual(r.late, { att: 10, mk: 5, rounds: 1, pct: 50 });
 });
 
 console.log('evaluatePassRule()');

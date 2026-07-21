@@ -539,6 +539,55 @@ export function lifetimeTotals(sessions) {
 }
 
 // ---------------------------------------------------------------------------
+// M10：疲勞趨勢改版——單場逐輪序列 / 輪次前後對半分（取代統計頁的逐球前後段）
+// ---------------------------------------------------------------------------
+
+/**
+ * 單場逐輪序列：每輪 {round, att, mk, pct}，pct 沿用 pct()（att=0 → null）。
+ * 供統計頁「單場逐輪」折線圖與摘要句共用，round 從 1 起算對應顯示的 #1..#n。
+ * @param {Object} session
+ * @returns {Array<{round:number, att:number, mk:number, pct:(number|null)}>}
+ */
+export function sessionRoundSeries(session) {
+  const rounds = (session && session.rounds) || [];
+  return rounds.map((r, i) => {
+    const att = Number(r.attempts) || 0;
+    const mk = Number(r.makes) || 0;
+    return { round: i + 1, att, mk, pct: pct(mk, att) };
+  });
+}
+
+/**
+ * 依「輪次」前後對半分（輪數為奇數時，中間那一輪算前半——與 evaluateSignature('klay')
+ * 的「量產不停」同一套慣例，全 App 對半分規則統一）。
+ * @param {Array<{attempts:number, makes:number}>} rounds
+ * @returns {{early:{att:number,mk:number,rounds:number,pct:(number|null)}, late:{att:number,mk:number,rounds:number,pct:(number|null)}}|null}
+ *   輪數 < 2 時無法有意義地分前後半，回傳 null。
+ */
+export function roundHalfSplit(rounds) {
+  const list = rounds || [];
+  const n = list.length;
+  if (n < 2) return null;
+
+  const half = Math.ceil(n / 2);
+  const sum = (arr) =>
+    arr.reduce(
+      (acc, r) => ({ att: acc.att + (Number(r.attempts) || 0), mk: acc.mk + (Number(r.makes) || 0) }),
+      { att: 0, mk: 0 }
+    );
+
+  const earlyRounds = list.slice(0, half);
+  const lateRounds = list.slice(half);
+  const e = sum(earlyRounds);
+  const l = sum(lateRounds);
+
+  return {
+    early: { att: e.att, mk: e.mk, rounds: earlyRounds.length, pct: pct(e.mk, e.att) },
+    late: { att: l.att, mk: l.mk, rounds: lateRounds.length, pct: pct(l.mk, l.att) },
+  };
+}
+
+// ---------------------------------------------------------------------------
 // M2：統計分頁（期間篩選 / 命中率趨勢 / 熱力格日曆 / 疲勞趨勢彙總）＋ 週目標
 // ---------------------------------------------------------------------------
 
