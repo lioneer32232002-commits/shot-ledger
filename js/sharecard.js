@@ -147,6 +147,9 @@ export function buildLifetimeCardData(state, now = new Date()) {
       : `${formatDateSlash(minD)} – ${formatDateSlash(maxD)}`;
   }
 
+  // 生涯數字不含上籃（stats.js LIFETIME_EXCLUDED_TYPES）——卡上不另外標註：
+  // 左欄「N / M 投中」那行的寬度預算只到右欄起點，加註記會壓到右欄；而且排除
+  // 上籃只會讓數字更保守，不是灌水，說明留在統計頁的生涯累計卡上講。
   const totals = lifetimeTotals(sessions);
   const totalPct = pct(totals.mk, totals.att);
   // 練習次數只算已結束的節；輪次含進行中的一節——與統計頁 renderLifetimeCard() 同一套算法。
@@ -404,7 +407,7 @@ function drawCardBackgroundAndPalette(ctx, photoImg) {
         // 深色「晶片底」蓋住照片，思路同 drawMiniCourt() 的出手點位晶片底
         // （rgba(255,255,255,0.94) 蓋住球場線），只是這裡文字是亮色系，晶片底改深色。
         // 0.55 是實測 bg2.jpg（籃網＋手臂，最複雜那張）調出來的：用 WCAG 對比度公式
-        // 量最容易被背景吃掉的 4 顆（streak_30／60、volume_50000、stars_10）文字色
+        // 量最容易被背景吃掉的 4 顆（streak_30／60、當時的投量頂階、stars_10）文字色
         // 對圓盤底色的對比度，0.42 起跳只有 6.27～6.5、0.55 才穩定站上 7:1（AAA
         // 門檻）以上，數字在最亂的底圖上仍然清楚。
         badgeDiscFill: 'rgba(0, 0, 0, 0.55)',
@@ -721,15 +724,25 @@ function drawBadgeIconShape(ctx, icon) {
   });
 }
 
-/** 用最寬字串「2.5K」（17 顆裡最長）量出圓盤能塞下的最大數字字級：discD 圓盤
- *  直徑下所有徽章共用這一個字級，不因位數不同忽大忽小（SPEC_M12 §0.2，手法
- *  同 fitFontSize()，只是這裡固定量一個代表字串，不是依內容各自縮）。discD
- *  會隨版面空間動態縮到最小 76px，這裡跟著現算，不是寫死的常數。 */
+/** 用最寬的一列「3.5K」＋單位（21 顆裡最長）量出圓盤能塞下的最大數字字級：
+ *  discD 圓盤直徑下所有徽章共用這一個字級，不因位數不同忽大忽小（SPEC_M12
+ *  §0.2，手法同 fitFontSize()，只是這裡固定量一個代表字串，不是依內容各自縮）。
+ *  discD 會隨版面空間動態縮到最小 76px，這裡跟著現算，不是寫死的常數。
+ *  單位字要一起量：2026-07-28 進球家族掛上「進」之後，最寬的一列變成
+ *  「3.5K進」，只量數字會讓這顆徽章的單位戳出圓盤外圈。 */
+const BADGE_NUM_WIDEST = '3.5K';
+const BADGE_UNIT_WIDEST = '進';
+// CJK 單位字相對數字字級的比例：drawBadgeMedal() 實際畫的時候用同一個值，量測
+// 與繪製不能各拿一個數字，否則量出來塞得下、畫出來塞不下。
+const BADGE_UNIT_RATIO = 0.55;
 function computeBadgeNumFontSize(ctx, discD, maxWidthRatio) {
   let size = Math.round(discD * 0.46);
   while (size > 8) {
     ctx.font = `800 ${size}px ${FONT_FAMILY}`;
-    if (ctx.measureText('2.5K').width <= discD * maxWidthRatio) break;
+    const numW = ctx.measureText(BADGE_NUM_WIDEST).width;
+    ctx.font = `700 ${Math.round(size * BADGE_UNIT_RATIO)}px ${FONT_FAMILY}`;
+    const unitW = ctx.measureText(BADGE_UNIT_WIDEST).width + 1; // +1＝畫的時候單位前的間隙
+    if (numW + unitW <= discD * maxWidthRatio) break;
     size -= 1;
   }
   return size;
@@ -766,8 +779,8 @@ function drawBadgeMedal(ctx, cx, cy, r, badge, baseFontSize, palette) {
   // 分享卡沒有旁白文字（不像成就條／徽章牆旁邊就有徽章全名），單位字要自己把話
   // 講完，所以字級大幅提高（原本 0.38，即約 14px，中文單位字站不住）。摘星家族的
   // 單位「★」跟正下方的星星家族標記是同一個符號，字級一樣大會顯得重複刺眼，
-  // 這裡維持小一級（0.42），其餘三個家族（天／關）都是 CJK 文字，要大到能讀。
-  const unitRatio = badge.unit === '★' ? 0.42 : 0.55;
+  // 這裡維持小一級（0.42），其餘家族（天／進／關）都是 CJK 文字，要大到能讀。
+  const unitRatio = badge.unit === '★' ? 0.42 : BADGE_UNIT_RATIO;
   const unitSize = Math.round(baseFontSize * unitRatio);
   const numFont = `800 ${baseFontSize}px ${FONT_FAMILY}`;
   const unitFont = `700 ${unitSize}px ${FONT_FAMILY}`;
@@ -1217,7 +1230,10 @@ function paintLifetimeLayout(ctx, layout, palette) {
     ctx.fillText(bg.emptyText, marginX, bg.emptyBaseline);
   } else {
     const r = bg.discD / 2;
-    const badgeNumFontSize = computeBadgeNumFontSize(ctx, bg.discD, 0.58);
+    // 0.72＝「數字＋單位」整列的寬度上限佔圓盤直徑的比例。2026-07-28 把單位字
+    // 一起納入量測後，同樣的字級需要更寬的預算，比例才從只量數字的 0.58 放到
+    // 0.72（＝原本的數字寬度再加一個 CJK 單位字），視覺大小維持不變。
+    const badgeNumFontSize = computeBadgeNumFontSize(ctx, bg.discD, 0.72);
     bg.layout.rows.forEach((row) => {
       row.forEach((cell) => {
         if (cell.type === 'plus') {

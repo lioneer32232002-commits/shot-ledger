@@ -4,12 +4,13 @@
 import { MENUS, getMenu, nextMenuId, ladderMenus } from './menus.js';
 import {
   isChallengeEligible, evaluatePassRule, sessionPct, aggregate, computeBadges, evaluateStars,
-  maxStreakDays, totalAttempts, STREAK_BADGE_TIERS, VOLUME_BADGE_TIERS,
+  maxStreakDays, lifetimeMakes, lifetimeThreeMakes,
+  STREAK_BADGE_TIERS, MAKES_BADGE_TIERS, THREES_BADGE_TIERS,
 } from './stats.js';
 // menus.js / stats.js 都是無相依的純資料／純函式模組，這裡 import 不會形成循環。
 
 const KEY = 'shotledger_v1';
-const SCHEMA_VERSION = 12;
+const SCHEMA_VERSION = 13;
 
 function emptyProgress() {
   // passed：明確記錄「已通過」的 menu id（SPEC_M11 §4.1）。舊版沒有這個欄位，
@@ -204,8 +205,9 @@ function migrate(data) {
     // 徽章擴充回溯發章（7→17 顆，2026-07-17）。跑在 v10（回溯發星）之後，
     // 摘星徽章才看得到完整星數。與所有徽章一樣只加不減：
     // - 出席用「歷史最長連續」補發——新章上線前連過的也算，不能只看現在還活著的 streak
-    // - 投量是單調累計，直接比門檻
     // - 階梯里程碑（通過 3／7 關）與摘星（10／25／全滿）從 progress 現況補發
+    // 投量徽章（volume_*）原本也在這裡補發，v13 已整個家族換成進球徽章並重算，
+    // 這裡就不再發舊 id，免得發了又被 v13 移掉。
     if (!data.progress || typeof data.progress !== 'object') data.progress = emptyProgress();
     if (!Array.isArray(data.progress.badges)) data.progress.badges = [];
     const badges = data.progress.badges;
@@ -214,8 +216,6 @@ function migrate(data) {
     };
     const maxStreak = maxStreakDays(data.sessions);
     for (const [n, id] of STREAK_BADGE_TIERS) addIf(maxStreak >= n, id);
-    const total = totalAttempts(data.sessions);
-    for (const [n, id] of VOLUME_BADGE_TIERS) addIf(total >= n, id);
     computeProgressBadges(data.progress).forEach((id) => addIf(true, id));
     data.schema = 11;
   }
@@ -269,6 +269,34 @@ function migrate(data) {
     computeProgressBadges(data.progress).forEach((id) => addIf(true, id));
 
     data.schema = 12;
+  }
+
+  if (data.schema < 13) {
+    // 投量徽章 → 進球徽章＋新增三分家族（2026-07-28）。
+    //
+    // 根因：舊的 volume_* 徽章數的是「總出手」而且把上籃算進去——上籃的命中率
+    // 天生就高（第 12 關的門檻就是上籃 ≥70%，其餘球種都在 30〜55%），等於「一直
+    // 投上籃」就能同時灌水生涯命中率跟徽章進度。改成「總進球、不含上籃」之後
+    // 數字才代表真的把球投進去了幾顆；門檻也跟著從 1,000〜50,000 出手改成
+    // 500〜8,000 進球（換算基準見 stats.js MAKES_BADGE_TIERS 的註記）。
+    //
+    // 這是全 App 唯一一次「減徽章」——其餘所有 migration 都是只加不減。理由是
+    // 舊 volume_* 的門檻與新制不同義（1,000 出手 ≠ 1,000 進球），留著會讓徽章牆
+    // 同時掛著兩套互相矛盾的累計數；而且新舊都是純累計、單調成長，重算不會讓
+    // 任何「真的投進去的球」消失，只是換一把尺重量一次。出席／摘星／階梯三個
+    // 家族完全不動。
+    if (!data.progress || typeof data.progress !== 'object') data.progress = emptyProgress();
+    if (!Array.isArray(data.progress.badges)) data.progress.badges = [];
+    data.progress.badges = data.progress.badges.filter((id) => !String(id).startsWith('volume_'));
+    const makes = lifetimeMakes(data.sessions);
+    for (const [n, id] of MAKES_BADGE_TIERS) {
+      if (makes >= n && !data.progress.badges.includes(id)) data.progress.badges.push(id);
+    }
+    const threes = lifetimeThreeMakes(data.sessions);
+    for (const [n, id] of THREES_BADGE_TIERS) {
+      if (threes >= n && !data.progress.badges.includes(id)) data.progress.badges.push(id);
+    }
+    data.schema = 13;
   }
 
   // 保底：不管資料是從哪個版本進來的，progress / settings.inputMode / settings.weeklyGoal / settings.theme / settings.cardBg / settings.homeSeen / settings.backupNudgeBase 形狀都要正確。

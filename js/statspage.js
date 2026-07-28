@@ -136,7 +136,7 @@ function renderLifetimeCard() {
         <div class="lifetime-card__total"><div class="lifetime-card__num">${formatThousands(lifetime.mk)}</div><div class="lifetime-card__label">總中</div></div>
         <div class="lifetime-card__total"><div class="lifetime-card__num lifetime-card__num--accent">${lifetimePct === null ? '—' : lifetimePct + '%'}</div><div class="lifetime-card__label">命中率</div></div>
       </div>
-      <p class="lifetime-card__meta nowrap">${sessionCount} 次練習・${roundCount} 輪</p>
+      <p class="lifetime-card__meta"><span class="nowrap">${sessionCount} 次練習・${roundCount} 輪</span><br>生涯數字不含上籃</p>
     </section>
   `;
 }

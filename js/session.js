@@ -507,6 +507,9 @@ function lastFinishedSession() {
   return list.slice().sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt))[0];
 }
 
+/** 練球頁的生涯累計行。數字與統計頁的生涯累計卡同一套口徑：不含上籃
+ *  （stats.js LIFETIME_EXCLUDED_TYPES），這行位置窄、不重複標註，說明放在
+ *  統計頁那張卡上。 */
 function renderLifetimeLine(cls) {
   const lifetime = lifetimeTotals(state.sessions);
   const lifetimePct = pct(lifetime.mk, lifetime.att);

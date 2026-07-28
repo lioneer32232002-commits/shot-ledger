@@ -220,7 +220,7 @@ function renderSettings() {
         <p class="settings-card__row">目前共 <strong class="nowrap">${sessionCount} 次練習</strong> / <strong class="nowrap">${roundCount} 輪</strong></p>
         <p class="settings-card__row">挑戰階梯：已解鎖 <strong class="nowrap">${unlocked}/${total} 關</strong></p>
         <p class="settings-card__row">星星：<strong class="nowrap">${starsEarned} / ${starsTotal}</strong></p>
-        <p class="settings-card__row">生涯累計：<strong class="nowrap">${formatThousands(lifetime.att)} 投</strong> / <strong class="nowrap">${formatThousands(lifetime.mk)} 中</strong>${lifetimePct === null ? '' : `<span class="nowrap">（${lifetimePct}%）</span>`}</p>
+        <p class="settings-card__row">生涯累計：<strong class="nowrap">${formatThousands(lifetime.att)} 投</strong> / <strong class="nowrap">${formatThousands(lifetime.mk)} 中</strong>${lifetimePct === null ? '' : `<span class="nowrap">（${lifetimePct}%）</span>`}<span class="nowrap">（不含上籃）</span></p>
         <p class="settings-card__row nowrap">上次備份：${formatBackupTime(settingsState.settings.lastBackupAt)}</p>
       </section>
 

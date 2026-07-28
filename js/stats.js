@@ -433,12 +433,26 @@ export function formatThousands(n) {
   return String(Number(n) || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
-/** 全期累計出手數（投量徽章用）。 */
-export function totalAttempts(sessions) {
-  return (sessions || []).reduce(
-    (sum, s) => sum + (s.rounds || []).reduce((a, r) => a + (Number(r.attempts) || 0), 0),
-    0
-  );
+/** 全期累計進球數，不含上籃（進球徽章用）——與生涯累計同一套基準，見
+ *  LIFETIME_EXCLUDED_TYPES。 */
+export function lifetimeMakes(sessions) {
+  return lifetimeTotals(sessions).mk;
+}
+
+/** 算作「三分球」的球種：深三是站得更遠的三分球，計入三分進球（三分徽章用）。
+ *  注意這只是徽章／生涯口徑，statspage 的球種篩選仍把 3pt 與 deep3 分開列。 */
+export const THREE_TYPES = ['3pt', 'deep3'];
+
+/** 全期累計三分進球數（含深三，三分徽章用）。 */
+export function lifetimeThreeMakes(sessions) {
+  let mk = 0;
+  for (const s of sessions || []) {
+    for (const r of s.rounds || []) {
+      if (!THREE_TYPES.includes(r.type)) continue;
+      mk += Number(r.makes) || 0;
+    }
+  }
+  return mk;
 }
 
 /** 以 now 為終點，往回算連續有練習（endedAt!==null）的天數（本地時區同年月日）。 */
@@ -479,22 +493,35 @@ export function maxStreakDays(sessions) {
   return best;
 }
 
-// 出席／投量徽章門檻（2026-07-17 擴充：跨階細一點但不太容易，每級約兩倍）。
+// 出席／進球徽章門檻（2026-07-17 擴充：跨階細一點但不太容易，每級約兩倍）。
 export const STREAK_BADGE_TIERS = [
   [3, 'streak_3'], [7, 'streak_7'], [14, 'streak_14'], [30, 'streak_30'], [60, 'streak_60'],
 ];
-export const VOLUME_BADGE_TIERS = [
-  [1000, 'volume_1000'], [2500, 'volume_2500'], [5000, 'volume_5000'],
-  [10000, 'volume_10000'], [25000, 'volume_25000'], [50000, 'volume_50000'],
+// 2026-07-28：投量徽章（總出手、含上籃）改為進球徽章（總進球、不含上籃）。
+// 換算基準——15 關完整版各打一輪＝1,700 球不含上籃的出手、以各關過關門檻推估
+// 約 870 進，一份完整菜單約 120 球／60 進：
+// 500 進≈8 場（起步就摸得到）、8,000 進≈階梯全破 9 趟≈130 場（約兩年的長期目標）。
+export const MAKES_BADGE_TIERS = [
+  [500, 'makes_500'], [1000, 'makes_1000'], [2000, 'makes_2000'],
+  [3500, 'makes_3500'], [5000, 'makes_5000'], [8000, 'makes_8000'],
+];
+// 三分進球徽章（2026-07-28 新增家族，含深三）：同一趟全階梯的三分進球約佔總
+// 進球的 32%（282 / 871），門檻就照這個比例配到 4 階——200 進≈階梯全破 0.7 趟
+// （練三分的人很快摸到第一顆）、2,000 進≈全破 7 趟，與進球家族的節奏對得上。
+export const THREES_BADGE_TIERS = [
+  [200, 'threes_200'], [500, 'threes_500'], [1000, 'threes_1000'], [2000, 'threes_2000'],
 ];
 
-/** 出席／投量徽章 id 清單（連續 3/7/14/30/60 天、累計 1000〜50000 球）。 */
+/** 出席／進球／三分徽章 id 清單（連續 3〜60 天、累計進球 500〜8000 顆不含上籃、
+ *  三分進球 200〜2000 顆含深三）。 */
 export function computeBadges(sessions, now) {
   const badges = [];
   const streak = streakDays(sessions, now);
   for (const [n, id] of STREAK_BADGE_TIERS) if (streak >= n) badges.push(id);
-  const total = totalAttempts(sessions);
-  for (const [n, id] of VOLUME_BADGE_TIERS) if (total >= n) badges.push(id);
+  const makes = lifetimeMakes(sessions);
+  for (const [n, id] of MAKES_BADGE_TIERS) if (makes >= n) badges.push(id);
+  const threes = lifetimeThreeMakes(sessions);
+  for (const [n, id] of THREES_BADGE_TIERS) if (threes >= n) badges.push(id);
   return badges;
 }
 
@@ -540,12 +567,30 @@ export function equivalentTier(session, menus) {
   return null;
 }
 
-/** 全生涯累計出手／命中總數（所有節，含自由練習）。 */
+/**
+ * 不列入「生涯數字」的球種（2026-07-28）：上籃的命中率天生就高（挑戰階梯的
+ * 上籃門檻是 70%，其餘球種都在 30〜55% 之間），算進生涯累計會同時灌水生涯
+ * 命中率與進球徽章的累計數，讓「多投上籃」變成刷數字的捷徑。
+ *
+ * 只影響「生涯」這一層：生涯累計卡、練球頁累計行、生涯分享卡、進球徽章。
+ * 單場統計、期間命中率趨勢、熱力格日曆、週目標、挑戰過關判定一律照算上籃
+ * ——那些回答的是「這段時間練了什麼」，上籃本來就是練習的一部分（第 12 關
+ * lin_taiwan 的 passRule 就直接考上籃 ≥70%）。
+ */
+export const LIFETIME_EXCLUDED_TYPES = ['layup'];
+
+/** 這一輪算不算進生涯數字（見 LIFETIME_EXCLUDED_TYPES）。 */
+export function countsForLifetime(round) {
+  return !LIFETIME_EXCLUDED_TYPES.includes(round && round.type);
+}
+
+/** 全生涯累計出手／命中總數（所有節，含自由練習；不含上籃）。 */
 export function lifetimeTotals(sessions) {
   let att = 0;
   let mk = 0;
   for (const s of sessions || []) {
     for (const r of s.rounds || []) {
+      if (!countsForLifetime(r)) continue;
       att += Number(r.attempts) || 0;
       mk += Number(r.makes) || 0;
     }

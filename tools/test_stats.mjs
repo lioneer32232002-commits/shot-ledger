@@ -5,7 +5,7 @@ import {
   aggregate, pct, recentTypeAvg, todaySummary,
   roundCurve, earlyLateSplit, evaluatePassRule, sessionPct,
   isChallengeEligible, pctGapToShots, evaluateStars,
-  equivalentTier, lifetimeTotals,
+  equivalentTier, lifetimeTotals, lifetimeMakes, lifetimeThreeMakes,
   sessionsInRange, pctSeries, calendarCells, avgRoundCurve, weekAttempts,
   challengeForecast, maxStreakDays, computeBadges,
   sessionRoundSeries, roundHalfSplit,
@@ -582,6 +582,39 @@ test('加總所有節（含自由練習、含尚未結束的節）的所有輪�
   assert.deepEqual(lifetimeTotals(sessions), { att: 18, mk: 11 });
 });
 
+test('上籃輪完全不列入生涯累計（2026-07-28：上籃命中率天生高，會灌水）', () => {
+  const sessions = [
+    { id: 's1', mode: 'lin_taiwan', endedAt: '2026-07-01T00:00:00.000Z', rounds: [
+      { type: '2pt', attempts: 10, makes: 5 },
+      { type: 'layup', attempts: 10, makes: 9 },
+      { type: 'deep3', attempts: 10, makes: 3 },
+    ] },
+  ];
+  assert.deepEqual(lifetimeTotals(sessions), { att: 20, mk: 8 });
+  assert.equal(lifetimeMakes(sessions), 8);
+});
+
+console.log('lifetimeThreeMakes()');
+
+test('三分進球含深三、不含其他球種', () => {
+  const sessions = [
+    { id: 's1', endedAt: null, rounds: [
+      { type: '3pt', attempts: 10, makes: 4 },
+      { type: 'deep3', attempts: 10, makes: 3 },
+      { type: '2pt', attempts: 10, makes: 7 },
+      { type: 'ft', attempts: 10, makes: 8 },
+      { type: 'layup', attempts: 10, makes: 9 },
+    ] },
+  ];
+  assert.equal(lifetimeThreeMakes(sessions), 7);
+});
+
+test('沒有任何三分輪回傳 0；空輸入不炸', () => {
+  assert.equal(lifetimeThreeMakes([{ rounds: [{ type: 'ft', attempts: 10, makes: 9 }] }]), 0);
+  assert.equal(lifetimeThreeMakes([]), 0);
+  assert.equal(lifetimeThreeMakes(undefined), 0);
+});
+
 console.log('sessionsInRange()');
 
 test('進行中節（endedAt=null）一律排除', () => {
@@ -972,11 +1005,36 @@ test('出席五級門檻：連續 14 天拿 3/7/14，拿不到 30/60', () => {
   assert.ok(!badges.includes('streak_30') && !badges.includes('streak_60'));
 });
 
-test('投量六級門檻：累計 2,600 顆拿 1000/2500，拿不到 5000 以上', () => {
-  const sessions = [dayFixture(0, 2600)];
+test('進球六級門檻：累計進 1,300 顆拿 500/1000，拿不到 2000 以上', () => {
+  const sessions = [dayFixture(0, 2600)]; // dayFixture 的 makes = attempts / 2
   const badges = computeBadges(sessions, new Date());
-  assert.ok(badges.includes('volume_1000') && badges.includes('volume_2500'));
-  assert.ok(!badges.includes('volume_5000') && !badges.includes('volume_25000') && !badges.includes('volume_50000'));
+  assert.ok(badges.includes('makes_500') && badges.includes('makes_1000'));
+  assert.ok(!badges.includes('makes_2000') && !badges.includes('makes_5000') && !badges.includes('makes_8000'));
+});
+
+test('進球徽章數的是進球不是出手，而且不算上籃', () => {
+  // 1,000 顆上籃全進＋2 分投 1,200 進 600：出手 2,200（舊制早就過 1,000 門檻），
+  // 但列入生涯的進球只有 600 → 只拿得到 makes_500。
+  const s = dayFixture(0, 10);
+  s.rounds = [
+    { type: 'layup', attempts: 1000, makes: 1000 },
+    { type: '2pt', attempts: 1200, makes: 600 },
+  ];
+  const badges = computeBadges([s], new Date());
+  assert.ok(badges.includes('makes_500'));
+  assert.ok(!badges.includes('makes_1000'));
+});
+
+test('三分四級門檻：三分＋深三合計進 600 顆拿 200/500，拿不到 1000 以上', () => {
+  const s = dayFixture(0, 10);
+  s.rounds = [
+    { type: '3pt', attempts: 1000, makes: 400 },
+    { type: 'deep3', attempts: 600, makes: 200 },
+    { type: '2pt', attempts: 100, makes: 90 }, // 2 分進球不該算進三分徽章
+  ];
+  const badges = computeBadges([s], new Date());
+  assert.ok(badges.includes('threes_200') && badges.includes('threes_500'));
+  assert.ok(!badges.includes('threes_1000') && !badges.includes('threes_2000'));
 });
 
 test('streak 中斷只看現在：昨天前天有練、今天沒練 → 不發連續徽章', () => {
