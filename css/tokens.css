@@ -5,7 +5,24 @@
   --color-accent: #E8590C;
   --color-accent-dark: #B8430A;
   --color-accent-tint: #FDEAE0;
-  --color-accent-contrast: #FFFFFF;
+  --color-accent-contrast: #FFFFFF; /* @deprecated：改用 --color-on-fill（見下方說明） */
+
+  /* ---- 飽和色塊上的文字（SPEC_M18）----
+   * 起因：--color-accent 配白字只有 3.58:1、深色模式的 success／danger 配白字更低到
+   * 2.0〜2.9，全都低於 AA 小字的 4.5。這不是某顆按鈕的問題，是「文字壓在飽和色塊上」
+   * 這個模式的問題，所以修在 token 層。
+   *
+   * 兩個主題的正解本來就不同，不要硬求一致：
+   * - 淺色模式：色塊維持深色、文字用白（--color-fill-accent 比 accent 壓深一階，
+   *   白字才站得住；success／danger 本身就夠深，直接配白字）。
+   * - 深色模式：暗底需要亮色塊（亮橘才看得出是 accent），所以色塊維持亮、文字改近黑。
+   *
+   * 用法：凡是「飽和色當底＋上面有字」的控制項，底色用 --color-fill-accent（accent 系）
+   * 或原本的 success／danger，文字一律用 --color-on-fill。純色塊（進度條、熱力格、
+   * pip）沒有文字，不受此規範。
+   */
+  --color-fill-accent: #B8430A;
+  --color-on-fill: #FFFFFF;
 
   --color-bg: #FAF9F7;
   --color-surface: #FFFFFF;
@@ -16,12 +33,15 @@
   --color-text: #201A15;
   --color-text-muted: #6B6053;
   --color-text-faint: #94897A;
-  --color-text-on-accent: #FFFFFF;
+  --color-text-on-accent: #FFFFFF; /* @deprecated：改用 --color-on-fill */
 
   --color-success: #17794F;
   --color-success-tint: #E1F4EB;
   --color-danger: #B23B2E;
   --color-danger-tint: #FBE7E3;
+  /* danger 當「文字色」時的專用值：深色模式的 --color-danger 是給色塊用的亮紅，
+     拿來當字壓在 surface／danger-tint 上只有 3.23:1。填色維持不變，只有文字走這顆。 */
+  --color-danger-text: #B23B2E;
 
   --color-court-line: #C9BFAF;
   --color-spot-idle: #C7BFB2;
@@ -91,15 +111,19 @@
 
 /* ---------------------------------------------------------------------- */
 /* 深色模式：由 js/app.js 的 applyTheme() 寫入 document.documentElement       */
-/* 的 data-theme 屬性套用。--color-night 系列（夜幕面板）與                    */
-/* --color-text-on-accent / --color-accent-contrast 兩色不變，                */
-/* 兩種主題下都成立，故不在此覆寫。                                          */
+/* 的 data-theme 屬性套用。--color-night 系列（夜幕面板）兩種主題下都成立，     */
+/* 故不在此覆寫；--color-text-on-accent / --color-accent-contrast 已停用，      */
+/* 改用 --color-on-fill（它在深色模式必須覆寫，見上方說明）。                   */
 /* ---------------------------------------------------------------------- */
 
 :root[data-theme="dark"] {
   --color-accent: #F2691D;
   --color-accent-dark: #E8590C;
   --color-accent-tint: #3A2417;
+
+  /* 暗底要亮色塊才看得出是 accent，所以色塊維持亮橘、文字改近黑（見上方說明）。 */
+  --color-fill-accent: #F2691D;
+  --color-on-fill: #16130F;
 
   --color-bg: #16130F;
   --color-surface: #201B16;
@@ -115,6 +139,7 @@
   --color-success-tint: #143327;
   --color-danger: #E5695B;
   --color-danger-tint: #3A1F1B;
+  --color-danger-text: #F09A8F;
 
   --color-court-line: #4A4036;
   --color-spot-idle: #5A5142;

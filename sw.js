@@ -11,7 +11,7 @@
 //
 // 改版時把 CACHE_NAME 版號遞增，activate 階段會自動清掉舊版快取。
 
-const CACHE_NAME = 'shotledger-v37';
+const CACHE_NAME = 'shotledger-v38';
 
 const SHELL_URLS = ['./', 'index.html'];
 

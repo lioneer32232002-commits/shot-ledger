@@ -338,8 +338,8 @@ a {
 }
 
 .btn--primary {
-  background: var(--color-accent);
-  color: var(--color-text-on-accent);
+  background: var(--color-fill-accent);
+  color: var(--color-on-fill);
 }
 
 /* 外圈 offset ring，呼應 .hero-card__cta-circle::after；只有 primary（層級最高）才加 */
@@ -378,12 +378,12 @@ a {
 
 .btn--ghost-danger {
   background: transparent;
-  color: var(--color-danger);
+  color: var(--color-danger-text);
 }
 
 .btn--danger {
   background: var(--color-danger);
-  color: #fff;
+  color: var(--color-on-fill);
 }
 
 .chip {
@@ -406,9 +406,9 @@ a {
 
 /* 選中態：accent 實色膠囊（非淡底），呼應「選項族」設計語彙（SPEC M4.2 §1） */
 .chip--active {
-  background: var(--color-accent);
-  border-color: var(--color-accent);
-  color: var(--color-text-on-accent);
+  background: var(--color-fill-accent);
+  border-color: var(--color-fill-accent);
+  color: var(--color-on-fill);
 }
 
 .chip--attempts {
@@ -439,8 +439,8 @@ a {
 }
 
 .option-segmented__btn.is-active {
-  background: var(--color-accent);
-  color: var(--color-text-on-accent);
+  background: var(--color-fill-accent);
+  color: var(--color-on-fill);
   box-shadow: var(--shadow-sm);
 }
 
@@ -974,15 +974,15 @@ a {
 
 .makes-btn:active {
   transform: scale(0.92);
-  background: var(--color-accent);
-  color: #fff;
-  border-color: var(--color-accent);
+  background: var(--color-fill-accent);
+  color: var(--color-on-fill);
+  border-color: var(--color-fill-accent);
 }
 
 .makes-btn.is-active {
-  background: var(--color-accent);
-  color: #fff;
-  border-color: var(--color-accent);
+  background: var(--color-fill-accent);
+  color: var(--color-on-fill);
+  border-color: var(--color-fill-accent);
 }
 
 .makes-btn:disabled {
@@ -1195,9 +1195,9 @@ a {
 }
 
 .stepper-btn.is-active {
-  background: var(--color-accent);
-  color: #fff;
-  border-color: var(--color-accent);
+  background: var(--color-fill-accent);
+  color: var(--color-on-fill);
+  border-color: var(--color-fill-accent);
 }
 
 .toast {
@@ -2054,8 +2054,8 @@ a {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: var(--color-accent);
-  color: var(--color-accent-contrast);
+  background: var(--color-fill-accent);
+  color: var(--color-on-fill);
   /* 單字口令「SHOT」：字距拉開往右多出一格視覺寬，用 text-indent 補回置中 */
   font-size: 21px;
   font-weight: 800;
@@ -2364,7 +2364,7 @@ a {
   justify-content: center;
   border-radius: var(--radius-full);
   background: var(--color-success);
-  color: var(--color-text-on-accent);
+  color: var(--color-on-fill);
   font-size: 10px;
   font-weight: 800;
 }
@@ -2721,8 +2721,8 @@ a {
 }
 
 .input-mode-btn.is-active {
-  background: var(--color-accent);
-  color: var(--color-text-on-accent);
+  background: var(--color-fill-accent);
+  color: var(--color-on-fill);
   box-shadow: var(--shadow-sm);
 }
 
@@ -2769,9 +2769,9 @@ a {
 }
 
 .seq-ball.is-made {
-  background: var(--color-accent);
+  background: var(--color-fill-accent);
   border-color: var(--color-accent-dark);
-  color: #fff;
+  color: var(--color-on-fill);
 }
 
 .seq-summary {
@@ -2934,8 +2934,8 @@ a {
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.04em;
-  color: var(--color-accent-contrast);
-  background: var(--color-accent-dark);
+  color: var(--color-on-fill);
+  background: var(--color-fill-accent);
   border-radius: var(--radius-full);
   padding: 2px var(--space-2);
 }
@@ -4148,8 +4148,8 @@ a {
 }
 
 .goal-quick-btn.is-active {
-  background: var(--color-accent);
-  color: var(--color-text-on-accent);
+  background: var(--color-fill-accent);
+  color: var(--color-on-fill);
   box-shadow: var(--shadow-sm);
 }
 
