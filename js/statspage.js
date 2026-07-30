@@ -12,7 +12,13 @@ import { formatThousands } from './session.js';
 import { badgeWallHtml } from './badges.js';
 import { pageBannerHtml } from './pagebanner.js';
 import { getMenu } from './menus.js';
-import { openLifetimeShareSheet } from './sharecard.js';
+
+// 分享卡引擎按需載入（SPEC_M14 §3.3，同 session.js 的做法）：75 KB 的 canvas
+// 排版程式不該卡在首屏關鍵路徑上，統計頁只有按下「分享生涯成績卡」才需要它。
+async function openLifetimeShareSheet(...args) {
+  const mod = await import('./sharecard.js');
+  return mod.openLifetimeShareSheet(...args);
+}
 
 const PERIODS = [
   { key: '7', label: '7 天', days: 7 },

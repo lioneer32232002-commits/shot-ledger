@@ -1339,7 +1339,19 @@ function normalizeCardBg(value) {
  * @param {(canvas: HTMLCanvasElement, opts: {photoImg: HTMLImageElement|null}) => void} opts.draw
  *   純畫圖回呼，由呼叫端把 buildCardData()／buildLifetimeCardData() 的資料綁進閉包。
  */
+/**
+ * 請 Service Worker 補快取 5 張分享卡底圖（SPEC_M14 §3.2）。
+ * 它們已從 sw.js 的 CORE 移除（首訪不該在背景吃掉近 1 MB 行動數據），改在第一次
+ * 真的要用到的時候補。頁面不自己開 cache：CACHE_NAME 只該有 sw.js 一個真實來源。
+ * 沒有 SW（首訪、或不支援）也不影響——圖照樣從網路載，runtime handler 會存起來。
+ */
+function precacheCardBg() {
+  const sw = navigator.serviceWorker;
+  if (sw && sw.controller) sw.controller.postMessage({ type: 'precache-cardbg' });
+}
+
 function openCardSheet({ state, title, filename, draw }) {
+  precacheCardBg();
   const canvas = document.createElement('canvas');
 
   // 底圖狀態：selected 是目前選中的 tile 值（'paper'｜'bg1'..'bg5'｜'custom'）；

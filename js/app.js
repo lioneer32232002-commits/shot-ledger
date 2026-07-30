@@ -12,6 +12,7 @@ import { formatThousands } from './session.js';
 import { starsCount } from './badges.js';
 import { lifetimeTotals, pct } from './stats.js';
 import { pageBannerHtml } from './pagebanner.js';
+import { isStandalone, installSteps } from './env.js';
 
 const VALID_TABS = ['train', 'stats', 'history', 'settings'];
 
@@ -176,6 +177,15 @@ function formatBackupTime(iso) {
   return `${d.getFullYear()}/${mm}/${dd} ${hh}:${mi}`;
 }
 
+/** 「上次備份」後面那句相對時間（SPEC_M14 §4.2c）：日期本身看不出「已經放了多久」。 */
+function backupAgeLabel(state) {
+  const days = store.daysSinceLastBackup(state);
+  if (days === null) return ''; // 一次練習都還沒完成，不用談備份
+  if (!state.settings.lastBackupAt) return `（已累積 ${days} 天的紀錄）`;
+  if (days <= 0) return '（今天）';
+  return `（${days} 天前）`;
+}
+
 function renderSettings() {
   if (!settingsRoot) return;
   const { sessionCount, roundCount } = countStats(settingsState);
@@ -221,7 +231,7 @@ function renderSettings() {
         <p class="settings-card__row">挑戰階梯：已解鎖 <strong class="nowrap">${unlocked}/${total} 關</strong></p>
         <p class="settings-card__row">星星：<strong class="nowrap">${starsEarned} / ${starsTotal}</strong></p>
         <p class="settings-card__row">生涯累計：<strong class="nowrap">${formatThousands(lifetime.att)} 投</strong> / <strong class="nowrap">${formatThousands(lifetime.mk)} 中</strong>${lifetimePct === null ? '' : `<span class="nowrap">（${lifetimePct}%）</span>`}<span class="nowrap">（不含上籃）</span></p>
-        <p class="settings-card__row nowrap">上次備份：${formatBackupTime(settingsState.settings.lastBackupAt)}</p>
+        <p class="settings-card__row">上次備份：<span class="nowrap">${formatBackupTime(settingsState.settings.lastBackupAt)}</span><span class="nowrap">${backupAgeLabel(settingsState)}</span></p>
       </section>
 
       <section class="settings-card">
@@ -243,6 +253,13 @@ function renderSettings() {
         </div>
         <input type="file" accept="application/json,.json" class="visually-hidden" data-role="import-input" />
         ${storagePersisted === true ? `<p class="settings-card__row settings-persist"><span class="settings-persist__dot"></span>儲存空間已受瀏覽器保護，不會被自動回收</p>` : ''}
+        ${
+          // 非「已加到主畫面」時才講：這是唯一能讓瀏覽器不在閒置後清掉網站資料的做法
+          // （navigator.storage.persist() 在 Safari 沒有實作，上面那行提示在 iOS 永遠不會出現）。
+          isStandalone()
+            ? `<p class="settings-card__row settings-persist"><span class="settings-persist__dot"></span>目前以主畫面 App 執行中，紀錄不會被瀏覽器自動清掉</p>`
+            : `<p class="settings-card__row settings-card__row--hint">建議把本站<strong>加到主畫面</strong>：瀏覽器閒置一段時間後可能清掉網站資料，加到主畫面的紀錄不受影響。${installSteps()}</p>`
+        }
       </section>
 
       <section class="settings-card settings-card--danger">

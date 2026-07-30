@@ -147,6 +147,86 @@ export function earlyLateSplit(rounds) {
   return { early, late };
 }
 
+// ---------------------------------------------------------------------------
+// M14 §1：連莊（連續達標輪）
+// ---------------------------------------------------------------------------
+
+/**
+ * 連莊門檻：每 10 球要進幾顆才算「達標輪」。
+ *
+ * 為什麼分球種而不是固定一個數字：固定 6/10 的話，深三輪永遠不可能達標——而使用者
+ * 正好卡在深三關卡，功能會剛好死在最需要它的地方（SPEC_M14 §1.2）。
+ * 為什麼門檻略高於過關門檻（例：2 分過關 45〜55%，連莊要 60%）：連莊是挑戰已無望時
+ * 還值得追的加分目標，它得自己夠硬才有意義，不是另一條關卡門檻。
+ *
+ * ⚠️ 動這張表就等於動了所有歷史場次的連莊數字（純現算、沒有落地存檔），要動之前
+ * 想清楚——不是資料遷移問題，是「使用者記得自己上週連莊 4 輪」的問題。
+ */
+export const STREAK_BAR_PER_10 = { ft: 8, layup: 8, '2pt': 6, '3pt': 5, deep3: 4 };
+const STREAK_BAR_DEFAULT = 6; // 認不得的球種（未來新球種忘了補表）退回中距的門檻
+
+/**
+ * 該輪要進幾顆才算達標（依實投數等比換算，向上取整）。
+ * attempts <= 0 回傳 null＝這輪不成立（實務上不存在，實投數 stepper 只給 1〜20）。
+ * @param {{type:string, attempts:number}} round
+ * @returns {number|null}
+ */
+export function roundBar(round) {
+  const per10 = STREAK_BAR_PER_10[round && round.type] ?? STREAK_BAR_DEFAULT;
+  const att = Number(round && round.attempts) || 0;
+  if (att <= 0) return null;
+  // 扣 epsilon 的理由同 pctGapToShots：剛好整除時別被浮點誤差多進位一顆。
+  return Math.max(1, Math.ceil((per10 * att) / 10 - 1e-9));
+}
+
+/** 該輪是否達標（進球數 ≥ roundBar）。輪不成立（attempts<=0）視為未達標＝中斷連莊。 */
+export function isStreakRound(round) {
+  const bar = roundBar(round);
+  if (bar === null) return false;
+  return (Number(round.makes) || 0) >= bar;
+}
+
+/**
+ * 一節的連莊：最長連續達標輪、以及「結尾是否還在延續」。
+ * 順序用陣列順序（與 roundCurve／單場逐輪一致，不重新依 at 排序）。
+ * @param {Array} rounds
+ * @returns {{best:number, current:number, bestEnd:number}} bestEnd＝最佳段最後一輪的索引，沒有則 -1
+ */
+export function roundStreak(rounds) {
+  let best = 0;
+  let run = 0;
+  let bestEnd = -1;
+  (rounds || []).forEach((r, i) => {
+    if (isStreakRound(r)) {
+      run += 1;
+      if (run > best) {
+        best = run;
+        bestEnd = i;
+      }
+    } else {
+      run = 0;
+    }
+  });
+  return { best, current: run, bestEnd };
+}
+
+/**
+ * 生涯最長連莊（一節一段，不跨節累計——跨日的連續是「連續練習天數」那套出席系統）。
+ * 現算不落地：連莊沒有存進 progress，改門檻或改算法都不會留下對不起來的舊資料。
+ * @param {Array} sessions
+ * @param {string|null} [excludeSessionId] 排除某節（結算頁要比「本節 vs 過去最佳」）
+ * @returns {number}
+ */
+export function bestRoundStreakAllTime(sessions, excludeSessionId) {
+  let best = 0;
+  for (const s of sessions || []) {
+    if (excludeSessionId && s.id === excludeSessionId) continue;
+    const b = roundStreak(s.rounds).best;
+    if (b > best) best = b;
+  }
+  return best;
+}
+
 /**
  * 評估一節是否達成 passRule；只對 variant==="full" 的挑戰節評估，其餘一律 pass:false。
  * @param {Object} session

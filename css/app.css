@@ -1428,6 +1428,82 @@ a {
   margin: 0;
 }
 
+/* ---------------------------------------------------------------------- */
+/* 加到主畫面引導（SPEC_M14 §4.2b）                                         */
+/*                                                                        */
+/* 與 backup-nudge 同一個家族（結算頁的提醒卡），但這張用 accent-tint 打底、    */
+/* 不畫框線——它是「建議你做一件對自己好的事」，不是警告，所以不用 danger 色，    */
+/* 也不做成跟資料統計卡一樣的白底卡片（避免看起來像又一區數據）。              */
+/* ---------------------------------------------------------------------- */
+
+.save-card {
+  background: var(--color-accent-tint);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  transition: opacity var(--transition-med);
+}
+
+.save-card--leaving {
+  opacity: 0;
+}
+
+.save-card__row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.save-card__icon {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  color: var(--color-accent-dark);
+}
+
+.save-card__icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.save-card__title {
+  font-size: var(--text-md);
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.save-card__sub {
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+/* 操作步驟另起一塊白底：它是「照著做」的指令，跟上面的說明理由分開讀 */
+.save-card__how {
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--color-text);
+  background: var(--color-surface);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+}
+
+.save-card__dismiss {
+  text-align: center;
+}
+
+.save-card__dismiss button {
+  border: none;
+  background: none;
+  font-size: var(--text-xs);
+  color: var(--color-text-faint);
+  padding: var(--space-1);
+  cursor: pointer;
+}
+
 .summary__actions {
   display: flex;
   flex-direction: column;
@@ -1577,6 +1653,15 @@ a {
 .settings-card__row {
   font-size: var(--text-sm);
   color: var(--color-text-muted);
+}
+
+/* 「建議加到主畫面」那行（SPEC_M14 §4.2c）：多行說明，要有行高才讀得下去 */
+.settings-card__row--hint {
+  line-height: var(--leading-normal);
+}
+
+.settings-card__row--hint strong {
+  color: var(--color-text);
 }
 
 .settings-storage-note {
@@ -2520,6 +2605,99 @@ a {
 }
 
 /* ---------------------------------------------------------------------- */
+/* 連莊 rail（練習中）＋ pip（SPEC_M14 §1.3）                                */
+/*                                                                        */
+/* pip 刻意用小方塊而不是圓點：球場圖的熱區點與三星都已經是圓／星，方塊才不會   */
+/* 被誤讀成同一套語彙——它要像紙上一格一格的劃記。                            */
+/* accent 只在真的有連莊時出現（is-live）；「開莊門檻」狀態故意留在灰階，       */
+/* 免得一開節就有一個橘色數字在慶祝還沒發生的事。                             */
+/* ---------------------------------------------------------------------- */
+
+.streak-rail {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface-sunken);
+  border-radius: var(--radius-md);
+}
+
+.streak-rail.is-live {
+  background: var(--color-accent-tint);
+}
+
+.streak-rail__num {
+  font-size: var(--text-xl);
+  font-weight: 800;
+  line-height: 1;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.streak-rail.is-live .streak-rail__num {
+  color: var(--color-accent);
+}
+
+.streak-rail__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.streak-rail__label {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.streak-rail__hint {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.streak-rail__hint strong {
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.streak-pips {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: 46%;
+}
+
+.streak-pip {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  border: 1px solid var(--color-border-strong);
+  flex-shrink: 0;
+}
+
+.streak-pip.is-on {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+/* 下一輪的位置：虛線框＝「還沒投」，讓 rail 有一個往前的空格 */
+.streak-pip--next {
+  border-style: dashed;
+  border-color: var(--color-text-faint);
+}
+
+.streak-pips__clip {
+  font-size: 10px;
+  line-height: 1;
+  color: var(--color-text-faint);
+}
+
+/* ---------------------------------------------------------------------- */
 /* 快速／逐球輸入切換 ＋ 逐球球圖                                            */
 /* ---------------------------------------------------------------------- */
 
@@ -2715,6 +2893,211 @@ a {
 .split-col__score {
   font-size: var(--text-xs);
   color: var(--color-text-muted);
+}
+
+/* ---------------------------------------------------------------------- */
+/* 本節統計：連莊卡（SPEC_M14 §1.3）                                        */
+/*                                                                        */
+/* 版面思路同 hero 卡與徽章數字盤：讓數字自己當主角，說明退成旁邊的小字。      */
+/* 右欄（pip ＋ 生涯最佳／門檻）靠右對齊，與左邊的大數字形成一條可讀的軸線。    */
+/* ---------------------------------------------------------------------- */
+
+.streak-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.streak-card__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+/* 副標與門檻行都用 muted 而不是 faint：深色模式實測 faint 在 11〜12px 只有 4.06
+   對比（AA 小字要 4.5），而這兩行是「第一次看懂連莊是什麼」的關鍵說明，不是裝飾。
+   層級改用字級與字重拉開，不用犧牲可讀性換對比度。 */
+.streak-card__sub {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.streak-card__pb {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--color-accent-contrast);
+  background: var(--color-accent);
+  border-radius: var(--radius-full);
+  padding: 2px var(--space-2);
+}
+
+/* 大數字與右欄「垂直居中對齊」而不是對齊基線：右欄是兩行小字，基線對齊會讓
+   整張卡下重上輕（大數字下方留一片空白，小字卻掉到它下面去）。 */
+.streak-card__body {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* 數字與單位自己一組，內部才對齊基線（「輪」要坐在 4 的腳下，不是它的正中間） */
+.streak-card__value {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.streak-card__num {
+  font-size: var(--text-3xl);
+  font-weight: 800;
+  line-height: 0.9;
+  color: var(--color-accent-dark);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 0 輪不塗橘色：沒發生的事不慶祝（同 rail 的 is-idle 邏輯） */
+.streak-card__num.is-zero {
+  color: var(--color-text-faint);
+}
+
+.streak-card__unit {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.streak-card__right {
+  margin-left: auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.streak-card__right .streak-pips {
+  max-width: 100%;
+}
+
+/* 生涯最佳與門檻是刻意排的兩行（不是同一行擠到自動換行）：層級不同，字級也不同 */
+.streak-card__meta {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-align: right;
+}
+
+.streak-card__bar {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  text-align: right;
+  line-height: var(--leading-normal);
+}
+
+/* ---------------------------------------------------------------------- */
+/* 本節統計：可收合分析區（SPEC_M14 §2.2）                                  */
+/*                                                                        */
+/* 曲線與前後段是「回頭分析」用的，預設收起來，把上半頁讓給挑戰結果與連莊。     */
+/* summary 的預設 marker 各家瀏覽器長得不一樣，一律關掉、自己畫一個轉角箭頭。   */
+/* ---------------------------------------------------------------------- */
+
+.summary-fold {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.summary-fold__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--touch-min);
+  padding: 0 var(--space-4);
+  cursor: pointer;
+  list-style: none;
+}
+
+.summary-fold__head::-webkit-details-marker {
+  display: none;
+}
+
+.summary-fold__title {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.summary-fold__hint {
+  font-size: var(--text-xs);
+  color: var(--color-text-faint);
+}
+
+.summary-fold__chev {
+  margin-left: auto;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--color-text-faint);
+  border-bottom: 2px solid var(--color-text-faint);
+  transform: rotate(45deg);
+  transform-origin: center;
+  transition: transform var(--transition-fast);
+}
+
+.summary-fold[open] .summary-fold__chev {
+  transform: rotate(-135deg);
+}
+
+.summary-fold__body {
+  padding: 0 var(--space-4) var(--space-4);
+}
+
+/* ---------------------------------------------------------------------- */
+/* 本節統計：射手小語（SPEC_M14 §2.3）                                      */
+/*                                                                        */
+/* 刻意不是卡片：周圍全是 surface 卡，這一段留在頁面底色上、只用一條細線分隔，   */
+/* 才有雜誌「編按」的節奏感，也讓結算頁在往下捲時有一個明顯的段落換氣。        */
+/* ---------------------------------------------------------------------- */
+
+.shooter-note {
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.shooter-note__kicker {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: var(--color-accent);
+}
+
+.shooter-note__fact {
+  font-size: var(--text-md);
+  font-weight: 700;
+  line-height: var(--leading-tight);
+  color: var(--color-text);
+}
+
+.shooter-note__body {
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--color-text-muted);
+}
+
+/* 出處是可點的連結，不能比周圍的說明文字更難讀（faint 在深色模式只有 4.4） */
+.shooter-note__src {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 /* ---------------------------------------------------------------------- */

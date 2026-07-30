@@ -10,10 +10,19 @@ import {
   roundCurve, earlyLateSplit, evaluatePassRule, sessionPct,
   isChallengeEligible, challengeIneligibleReason, paceAssessment, pctGapToShots, typeAvgAllTime,
   equivalentTier, lifetimeTotals, weekAttempts, challengeForecast, formatThousands,
+  roundBar, roundStreak, isStreakRound, bestRoundStreakAllTime, STREAK_BAR_PER_10,
 } from './stats.js';
 import { BADGE_LABEL, badgeStripHtml } from './badges.js';
-import { openShareSheet } from './sharecard.js';
 import { pageBannerHtml } from './pagebanner.js';
+import { isStandalone, installSteps } from './env.js';
+
+// 分享卡引擎（sharecard.js，75 KB——全站最大的檔）改成按下分享才載入：它只在
+// 分享面板要用，卻會讓首屏多下載＋多解析一份 canvas 排版程式（SPEC_M14 §3.3）。
+// sw.js 的 CORE 仍會 precache 它，離線也分享得出來，這裡省的是首屏關鍵路徑。
+async function openShareSheet(...args) {
+  const mod = await import('./sharecard.js');
+  return mod.openShareSheet(...args);
+}
 
 // 兩個工具本體已外移（stats.js／badges.js），轉出口讓既有 import 不用改。
 export { formatThousands, BADGE_LABEL };
@@ -770,6 +779,121 @@ function renderSeqBallsHtml(seqArr, actionPrefix) {
   return `<div class="seq-balls">${rowsHtml}</div>`;
 }
 
+// ---------------------------------------------------------------------------
+// 連莊（SPEC_M14 §1）：練習中的 rail ＋ 結算頁的卡片，共用同一套 pip 與門檻文案。
+// ---------------------------------------------------------------------------
+
+const PIP_MAX = 20; // 自由練習可以無限輪，pip 只畫最近 20 輪（超過就從尾巴看）
+
+/** 一輪一顆 pip：達標填色、未達標空心——一眼看完整節的手感形狀（紙上劃記的感覺）。 */
+function streakPipsHtml(rounds, opts = {}) {
+  const list = rounds || [];
+  const shown = list.slice(-PIP_MAX);
+  const clipped = list.length > shown.length;
+  const pips = shown
+    .map((r) => `<span class="streak-pip${isStreakRound(r) ? ' is-on' : ''}"></span>`)
+    .join('');
+  const next = opts.showNext ? '<span class="streak-pip streak-pip--next"></span>' : '';
+  if (!pips && !next) return '';
+  return `
+    <span class="streak-pips" aria-hidden="true">
+      ${clipped ? '<span class="streak-pips__clip">…</span>' : ''}
+      ${pips}${next}
+    </span>
+  `;
+}
+
+/** 這一節出現過的球種各自的連莊門檻，例：「3 分 5・深 3 4・罰球 8」。 */
+function streakBarNote(rounds) {
+  const seen = [];
+  for (const r of rounds || []) {
+    if (r && r.type && !seen.includes(r.type)) seen.push(r.type);
+  }
+  const parts = seen
+    .filter((t) => STREAK_BAR_PER_10[t] !== undefined)
+    .map((t) => `<span class="nowrap">${typeLabel(t)} ${STREAK_BAR_PER_10[t]}</span>`);
+  if (!parts.length) return '';
+  return `門檻 ${parts.join('・')}（每 10 球）`;
+}
+
+/**
+ * 練習中的連莊 rail：挑戰已無望時，這是畫面上唯一還會動的數字（SPEC_M14 §1.1）。
+ * 三種狀態——正在連莊中／斷了但有最佳紀錄／還沒開始（顯示本輪的開莊門檻）。
+ */
+function renderStreakRailHtml(rounds, typeForRound, attempts) {
+  const { best, current } = roundStreak(rounds);
+  const bar = typeForRound ? roundBar({ type: typeForRound, attempts }) : null;
+
+  let cls = 'streak-rail';
+  let num;
+  let label;
+  let hint;
+  if (current > 0) {
+    cls += ' is-live';
+    num = current;
+    label = '連莊中';
+    hint = bar === null ? '' : `本輪進 <strong>${bar}</strong> 顆續莊`;
+  } else if (best > 0) {
+    num = best;
+    label = '本節最長';
+    hint = bar === null ? '' : `本輪進 <strong>${bar}</strong> 顆重新開莊`;
+  } else if (bar !== null) {
+    // 一輪都還沒達標：門檻自己當主角（放 0 只是在提醒使用者「你什麼都沒有」）。
+    // 這個狀態下 hint 不能再講一次同一個數字，否則變成「5 開莊門檻／本輪進 5 顆開莊」。
+    cls += ' is-idle';
+    num = bar;
+    label = '開莊門檻';
+    hint = '達到就開始連莊';
+  } else {
+    return '';
+  }
+
+  return `
+    <div class="${cls}">
+      <span class="streak-rail__num">${num}</span>
+      <span class="streak-rail__text">
+        <span class="streak-rail__label">${label}</span>
+        ${hint ? `<span class="streak-rail__hint">${hint}</span>` : ''}
+      </span>
+      ${streakPipsHtml(rounds, { showNext: true })}
+    </div>
+  `;
+}
+
+/**
+ * 結算頁的連莊卡：本節最長連莊當主角，生涯最佳與門檻收在旁邊的小字。
+ * 生涯最佳現算（bestRoundStreakAllTime，排除本節自己），不落地存檔。
+ */
+function renderStreakCardHtml(session, allSessions) {
+  const rounds = session.rounds || [];
+  if (rounds.length < 2) return ''; // 只有一輪談不上「連」
+  const { best } = roundStreak(rounds);
+  const prevBest = bestRoundStreakAllTime(allSessions, session.id);
+  const isPb = best > 0 && best > prevBest;
+  const note = streakBarNote(rounds);
+
+  return `
+    <section class="streak-card">
+      <div class="streak-card__head">
+        <h3 class="section-title">連莊</h3>
+        <span class="streak-card__sub">連續達標的輪次</span>
+        ${isPb ? '<span class="streak-card__pb">生涯新高</span>' : ''}
+      </div>
+      <div class="streak-card__body">
+        <span class="streak-card__value">
+          <span class="streak-card__num${best === 0 ? ' is-zero' : ''}">${best}</span>
+          <span class="streak-card__unit">輪</span>
+        </span>
+        <div class="streak-card__right">
+          ${streakPipsHtml(rounds)}
+          ${prevBest > 0 ? `<p class="streak-card__meta">生涯最佳 ${prevBest} 輪</p>` : ''}
+          ${note ? `<p class="streak-card__bar">${note}</p>` : ''}
+        </div>
+      </div>
+    </section>
+  `;
+}
+
 function renderActive() {
   const menu = getMenu(activeSession.mode);
   const seqList = getMenuRounds(menu, activeSession.variant);
@@ -880,6 +1004,7 @@ function renderActive() {
           </div>
           <button class="chip chip--attempts" data-action="open-attempts">實投 ${attemptsForRound} 球</button>
         </div>
+        ${renderStreakRailHtml(activeSession.rounds, pendingType, attemptsForRound)}
         ${modeToggleHtml}
         ${roundInputBody}
       </div>
@@ -1258,6 +1383,24 @@ function renderSummaryView() {
   });
 }
 
+/**
+ * 結算頁的可收合分析區（SPEC_M14 §2.2）：曲線與前後段是「回頭分析」用的，不是剛
+ * 投完最想看的東西——預設收起來，把上半頁讓給挑戰結果與連莊。
+ * summary 的箭頭自己畫（各家瀏覽器的預設 marker 長得不一樣，list-style 已在 CSS 關掉）。
+ */
+function summaryFoldHtml(title, hint, bodyHtml) {
+  return `
+    <details class="summary-fold">
+      <summary class="summary-fold__head">
+        <span class="summary-fold__title">${title}</span>
+        <span class="summary-fold__hint">${hint}</span>
+        <span class="summary-fold__chev" aria-hidden="true"></span>
+      </summary>
+      <div class="summary-fold__body">${bodyHtml}</div>
+    </details>
+  `;
+}
+
 function renderRoundCurveSection(rounds) {
   if (!rounds || rounds.length === 0) return '';
   const curve = roundCurve(rounds);
@@ -1271,12 +1414,7 @@ function renderRoundCurveSection(rounds) {
       </div>
     `;
   }).join('');
-  return `
-    <section class="curve-section">
-      <h3 class="section-title">輪次曲線</h3>
-      <div class="curve-chart">${bars}</div>
-    </section>
-  `;
+  return summaryFoldHtml('輪次曲線', `${curve.length} 輪`, `<div class="curve-chart">${bars}</div>`);
 }
 
 function renderEarlyLateSection(rounds) {
@@ -1284,21 +1422,41 @@ function renderEarlyLateSection(rounds) {
   if (!split) return '';
   const eP = pct(split.early.mk, split.early.att);
   const lP = pct(split.late.mk, split.late.att);
-  return `
-    <section class="split-section">
-      <h3 class="section-title">前後段對比（逐球資料）</h3>
-      <div class="split-row">
-        <div class="split-col">
-          <span class="split-col__label">前半</span>
-          <span class="split-col__pct">${eP === null ? '—' : eP + '%'}</span>
-          <span class="split-col__score">${split.early.mk}/${split.early.att}</span>
-        </div>
-        <div class="split-col">
-          <span class="split-col__label">後半</span>
-          <span class="split-col__pct">${lP === null ? '—' : lP + '%'}</span>
-          <span class="split-col__score">${split.late.mk}/${split.late.att}</span>
-        </div>
+  const body = `
+    <div class="split-row">
+      <div class="split-col">
+        <span class="split-col__label">前半</span>
+        <span class="split-col__pct">${eP === null ? '—' : eP + '%'}</span>
+        <span class="split-col__score">${split.early.mk}/${split.early.att}</span>
       </div>
+      <div class="split-col">
+        <span class="split-col__label">後半</span>
+        <span class="split-col__pct">${lP === null ? '—' : lP + '%'}</span>
+        <span class="split-col__score">${split.late.mk}/${split.late.att}</span>
+      </div>
+    </div>
+  `;
+  return summaryFoldHtml('輪內前後段', '逐球資料才有', body);
+}
+
+/**
+ * 射手小語（SPEC_M14 §2.3）：素材早就寫好了，只是從來沒被重看過——menus.js 每關的
+ * career.fact（雙來源查證的一句事蹟）與 basis（訓練依據＋出處）現在只活在開始前的
+ * 變體面板裡，看過一次就再也不出現。練完接回行為迴圈。
+ *
+ * ⚠️ 立場不變：body 用 basis.text（它與 basis.source 是綁在一起的那組敘述），
+ * 絕不可寫成「這是 XXX 的訓練菜單」。career.fact 沿用 hero 卡的處理方式不另掛連結
+ * （逐關的 fact 出處記在 menus.js 檔頭，不在資料結構裡，硬掛 basis.url 會變成錯誤歸屬）。
+ */
+function renderShooterNoteHtml(menu) {
+  if (!menu || !menu.challenge || !menu.basis) return '';
+  const fact = menu.career && menu.career.fact ? menu.career.fact : '';
+  return `
+    <section class="shooter-note">
+      <p class="shooter-note__kicker">射手小語</p>
+      ${fact ? `<p class="shooter-note__fact">${menu.player}｜${fact}</p>` : ''}
+      <p class="shooter-note__body">${menu.basis.text}</p>
+      <a class="shooter-note__src" href="${menu.basis.url}" target="_blank" rel="noopener">出處：${menu.basis.source} ↗</a>
     </section>
   `;
 }
@@ -1498,20 +1656,56 @@ export function renderSessionSummary(container, session, allSessions, opts = {})
   const splitHtml = renderEarlyLateSection(session.rounds);
   const challengeHtml = renderChallengeSection(menu, session, justFinished, cardState);
   const equivalentHtml = renderEquivalentTierSection(menu, session);
+  const streakHtml = renderStreakCardHtml(session, allSessions);
+  const shooterNoteHtml = renderShooterNoteHtml(menu);
 
-  // 里程碑備份小卡（SPEC_M9 包 C）：只在練球結束頁（有 onDone）出現，紀錄分頁節詳情不出卡。
-  const unbackedCount = cardState ? store.unbackedUpCount(cardState) : 0;
-  const nudgeBase = cardState ? cardState.settings.backupNudgeBase : null;
-  const showBackupNudge =
-    Boolean(onDone) && unbackedCount >= 30 && (nudgeBase == null || unbackedCount >= nudgeBase + 30);
+  // ---- 資料保命（SPEC_M14 §4）：兩張卡都只在練球結束頁（有 onDone）出現 ----
+  //
+  // 同一頁不並存：A2HS 優先，備份提醒讓位。理由是它解的是更上游的問題——加到主
+  // 畫面之後，瀏覽器就不會在閒置一段時間後把整份 localStorage 清掉，那是「匯出
+  // 備份」補不回來的（使用者要真的記得匯出，才有檔案可以救）。
+  const nudge = Boolean(onDone) && cardState ? store.backupNudge(cardState) : null;
+  const showA2hs =
+    Boolean(onDone) &&
+    cardState &&
+    !cardState.settings.a2hsDismissed &&
+    !isStandalone() &&
+    store.finishedSessionCount(cardState) >= 2;
+  const showBackupNudge = Boolean(nudge) && !showA2hs;
+
+  const a2hsHtml = showA2hs
+    ? `
+      <div class="save-card" data-role="a2hs-card">
+        <div class="save-card__row">
+          <span class="save-card__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="6" y="2.5" width="12" height="19" rx="2.5" />
+              <path d="M12 8v7M9 12l3 3 3-3" />
+            </svg>
+          </span>
+          <span class="save-card__text">
+            <p class="save-card__title">把 Shot Ledger 加到主畫面</p>
+            <p class="save-card__sub">不只是開得快——瀏覽器閒置久了可能清掉網站資料，加到主畫面的紀錄不會被清。</p>
+          </span>
+        </div>
+        <p class="save-card__how">${installSteps()}</p>
+        <div class="save-card__dismiss"><button data-summary-action="a2hs-dismiss">我知道了，不用再提醒</button></div>
+      </div>
+    `
+    : '';
+
   const backupNudgeHtml = showBackupNudge
     ? `
       <div class="backup-nudge" data-role="backup-nudge">
         <div class="backup-nudge__row">
-          <span class="backup-nudge__num">${unbackedCount}</span>
+          <span class="backup-nudge__num">${nudge.reason === 'days' ? nudge.days : nudge.count}</span>
           <span class="backup-nudge__text">
-            <p class="backup-nudge__title">次練習還沒備份</p>
-            <p class="backup-nudge__sub">匯出 JSON，換手機也帶得走</p>
+            <p class="backup-nudge__title">${nudge.reason === 'days' ? '天沒有備份過' : '次練習還沒備份'}</p>
+            <p class="backup-nudge__sub">${
+              nudge.reason === 'days'
+                ? `這段期間的 ${nudge.count} 次練習只存在這台裝置裡`
+                : '匯出 JSON，換手機也帶得走'
+            }</p>
           </span>
           <button class="btn btn--secondary backup-nudge__btn" data-summary-action="backup-export">匯出</button>
         </div>
@@ -1537,16 +1731,20 @@ export function renderSessionSummary(container, session, allSessions, opts = {})
         <div class="summary__total"><div class="summary__total-num summary__total-num--accent">${totalPct === null ? '—' : totalPct + '%'}</div><div class="summary__total-label">命中率</div></div>
       </div>
 
+      ${challengeHtml}
+      ${streakHtml}
+
       <ul class="type-list">${typeRows || '<li class="type-row type-row--empty">這次練習沒有任何紀錄</li>'}</ul>
+
+      <div class="summary__court" id="summary-court"></div>
 
       ${curveHtml}
       ${splitHtml}
 
-      <div class="summary__court" id="summary-court"></div>
-
-      ${challengeHtml}
+      ${shooterNoteHtml}
       ${equivalentHtml}
 
+      ${a2hsHtml}
       ${backupNudgeHtml}
 
       <div class="summary__actions">
@@ -1572,6 +1770,15 @@ export function renderSessionSummary(container, session, allSessions, opts = {})
   if (onDelete) {
     const btn = container.querySelector('[data-summary-action="delete"]');
     if (btn) btn.addEventListener('click', onDelete);
+  }
+  if (showA2hs) {
+    const cardEl = container.querySelector('[data-role="a2hs-card"]');
+    const dismissBtn = cardEl.querySelector('[data-summary-action="a2hs-dismiss"]');
+    dismissBtn.addEventListener('click', () => {
+      store.dismissA2hs(cardState);
+      cardEl.classList.add('save-card--leaving');
+      setTimeout(() => cardEl.remove(), 220); // 220ms＝--transition-med，同 backup-nudge 的做法
+    });
   }
   if (showBackupNudge) {
     const nudgeEl = container.querySelector('[data-role="backup-nudge"]');

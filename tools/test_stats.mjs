@@ -9,6 +9,7 @@ import {
   sessionsInRange, pctSeries, calendarCells, avgRoundCurve, weekAttempts,
   challengeForecast, maxStreakDays, computeBadges,
   sessionRoundSeries, roundHalfSplit,
+  roundBar, isStreakRound, roundStreak, bestRoundStreakAllTime,
 } from '../js/stats.js';
 
 let passed = 0;
@@ -286,6 +287,96 @@ test('該半段所有輪 attempts=0 時 pct 為 null', () => {
   const r = roundHalfSplit(rounds);
   assert.deepEqual(r.early, { att: 0, mk: 0, rounds: 1, pct: null });
   assert.deepEqual(r.late, { att: 10, mk: 5, rounds: 1, pct: 50 });
+});
+
+console.log('連莊 roundBar() / isStreakRound() / roundStreak()');
+
+test('roundBar：10 球時直接就是門檻表的數字', () => {
+  assert.equal(roundBar({ type: 'ft', attempts: 10 }), 8);
+  assert.equal(roundBar({ type: 'layup', attempts: 10 }), 8);
+  assert.equal(roundBar({ type: '2pt', attempts: 10 }), 6);
+  assert.equal(roundBar({ type: '3pt', attempts: 10 }), 5);
+  assert.equal(roundBar({ type: 'deep3', attempts: 10 }), 4);
+});
+
+test('roundBar：非 10 球等比換算並向上取整', () => {
+  assert.equal(roundBar({ type: '3pt', attempts: 20 }), 10); // 剛好整除，不該多進位成 11
+  assert.equal(roundBar({ type: '3pt', attempts: 7 }), 4); // 3.5 → 4
+  assert.equal(roundBar({ type: 'deep3', attempts: 5 }), 2); // 2.0 → 2
+  assert.equal(roundBar({ type: 'ft', attempts: 3 }), 3); // 2.4 → 3
+  assert.equal(roundBar({ type: '2pt', attempts: 1 }), 1); // 0.6 → 1（至少要進 1 顆）
+});
+
+test('roundBar：認不得的球種退回預設門檻 6/10，attempts<=0 回 null', () => {
+  assert.equal(roundBar({ type: 'halfcourt_heave', attempts: 10 }), 6);
+  assert.equal(roundBar({ type: '3pt', attempts: 0 }), null);
+  assert.equal(roundBar(undefined), null);
+});
+
+test('isStreakRound：剛好達門檻算達標，差一顆不算', () => {
+  assert.equal(isStreakRound({ type: '3pt', attempts: 10, makes: 5 }), true);
+  assert.equal(isStreakRound({ type: '3pt', attempts: 10, makes: 4 }), false);
+  assert.equal(isStreakRound({ type: 'deep3', attempts: 10, makes: 4 }), true);
+  // 同樣 4 顆：深三達標、罰球差得遠——這正是門檻分球種的用意
+  assert.equal(isStreakRound({ type: 'ft', attempts: 10, makes: 4 }), false);
+});
+
+test('isStreakRound：attempts=0 的輪視為未達標（中斷連莊）', () => {
+  assert.equal(isStreakRound({ type: '3pt', attempts: 0, makes: 0 }), false);
+});
+
+test('roundStreak：空／無輪次回傳全零，bestEnd 為 -1', () => {
+  assert.deepEqual(roundStreak([]), { best: 0, current: 0, bestEnd: -1 });
+  assert.deepEqual(roundStreak(undefined), { best: 0, current: 0, bestEnd: -1 });
+});
+
+test('roundStreak：中斷後重新起算，best 取最長段', () => {
+  const rounds = [
+    { type: '3pt', attempts: 10, makes: 6 }, // 達標
+    { type: '3pt', attempts: 10, makes: 5 }, // 達標 → 連 2
+    { type: '3pt', attempts: 10, makes: 2 }, // 中斷
+    { type: '3pt', attempts: 10, makes: 5 }, // 達標
+    { type: '3pt', attempts: 10, makes: 7 }, // 達標
+    { type: '3pt', attempts: 10, makes: 5 }, // 達標 → 連 3
+  ];
+  assert.deepEqual(roundStreak(rounds), { best: 3, current: 3, bestEnd: 5 });
+});
+
+test('roundStreak：結尾中斷時 current 歸零但 best 保留', () => {
+  const rounds = [
+    { type: '2pt', attempts: 10, makes: 7 },
+    { type: '2pt', attempts: 10, makes: 6 },
+    { type: '2pt', attempts: 10, makes: 3 },
+  ];
+  assert.deepEqual(roundStreak(rounds), { best: 2, current: 0, bestEnd: 1 });
+});
+
+test('roundStreak：混球種菜單各用自己的門檻', () => {
+  const rounds = [
+    { type: 'deep3', attempts: 10, makes: 4 }, // 深三門檻 4 → 達標
+    { type: 'ft', attempts: 10, makes: 8 }, // 罰球門檻 8 → 達標
+    { type: '2pt', attempts: 10, makes: 5 }, // 中距門檻 6 → 中斷
+  ];
+  assert.deepEqual(roundStreak(rounds), { best: 2, current: 0, bestEnd: 1 });
+});
+
+test('bestRoundStreakAllTime：取各節最佳段的最大值，不跨節累計', () => {
+  const mk = (makes) => makes.map((m) => ({ type: '3pt', attempts: 10, makes: m }));
+  const sessions = [
+    { id: 'a', rounds: mk([6, 6]) }, // 連 2
+    { id: 'b', rounds: mk([5, 5, 5]) }, // 連 3
+    { id: 'c', rounds: mk([1, 1]) }, // 0
+  ];
+  assert.equal(bestRoundStreakAllTime(sessions), 3);
+  // 兩節結尾與開頭都達標也不該接成 5：一節就是一段
+  assert.equal(bestRoundStreakAllTime([{ id: 'a', rounds: mk([6, 6]) }, { id: 'b', rounds: mk([6, 6]) }]), 2);
+});
+
+test('bestRoundStreakAllTime：可排除某節（結算頁比「本節 vs 過去最佳」）', () => {
+  const mk = (makes) => makes.map((m) => ({ type: '3pt', attempts: 10, makes: m }));
+  const sessions = [{ id: 'past', rounds: mk([5, 5]) }, { id: 'now', rounds: mk([5, 5, 5, 5]) }];
+  assert.equal(bestRoundStreakAllTime(sessions, 'now'), 2);
+  assert.equal(bestRoundStreakAllTime([], 'now'), 0);
 });
 
 console.log('evaluatePassRule()');

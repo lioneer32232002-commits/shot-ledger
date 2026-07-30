@@ -10,7 +10,7 @@ import {
 // menus.js / stats.js 都是無相依的純資料／純函式模組，這裡 import 不會形成循環。
 
 const KEY = 'shotledger_v1';
-const SCHEMA_VERSION = 13;
+const SCHEMA_VERSION = 14;
 
 function emptyProgress() {
   // passed：明確記錄「已通過」的 menu id（SPEC_M11 §4.1）。舊版沒有這個欄位，
@@ -24,7 +24,10 @@ function emptyState() {
   return {
     schema: SCHEMA_VERSION,
     sessions: [],
-    settings: { lastBackupAt: null, inputMode: 'quick', weeklyGoal: null, theme: 'auto', cardBg: 'bg1', homeSeen: false, backupNudgeBase: null },
+    settings: {
+      lastBackupAt: null, inputMode: 'quick', weeklyGoal: null, theme: 'auto', cardBg: 'bg1',
+      homeSeen: false, backupNudgeBase: null, backupNudgeSnoozedAt: null, a2hsDismissed: false,
+    },
     progress: emptyProgress(),
   };
 }
@@ -299,6 +302,16 @@ function migrate(data) {
     data.schema = 13;
   }
 
+  if (data.schema < 14) {
+    // 資料保命（SPEC_M14 §4）：備份提醒從「只看未備份節數」改成「節數 或 天數」，
+    // 並新增「加到主畫面」引導。兩個新欄位都只是 snooze／已讀狀態，沒有既有資料
+    // 要換算——純加欄位，舊資料不受影響（下面的保底區也會補，這裡明寫是為了留
+    // 版本足跡：日後看 schema 就知道這兩個欄位是哪一包加的）。
+    if (!('backupNudgeSnoozedAt' in data.settings)) data.settings.backupNudgeSnoozedAt = null;
+    if (!('a2hsDismissed' in data.settings)) data.settings.a2hsDismissed = false;
+    data.schema = 14;
+  }
+
   // 保底：不管資料是從哪個版本進來的，progress / settings.inputMode / settings.weeklyGoal / settings.theme / settings.cardBg / settings.homeSeen / settings.backupNudgeBase 形狀都要正確。
   if (!data.progress || typeof data.progress !== 'object') data.progress = emptyProgress();
   if (!Array.isArray(data.progress.unlocked)) data.progress.unlocked = ['lin_college'];
@@ -313,6 +326,8 @@ function migrate(data) {
   if (!['paper', 'bg1', 'bg2', 'bg3', 'bg4', 'bg5'].includes(data.settings.cardBg)) data.settings.cardBg = 'bg1';
   if (typeof data.settings.homeSeen !== 'boolean') data.settings.homeSeen = false;
   if (typeof data.settings.backupNudgeBase !== 'number' && data.settings.backupNudgeBase !== null) data.settings.backupNudgeBase = null;
+  if (typeof data.settings.backupNudgeSnoozedAt !== 'string') data.settings.backupNudgeSnoozedAt = null;
+  if (typeof data.settings.a2hsDismissed !== 'boolean') data.settings.a2hsDismissed = false;
 
   return data;
 }
@@ -719,8 +734,78 @@ export function unbackedUpCount(state) {
   return state.sessions.filter((s) => s.endedAt !== null && s.startedAt > last).length;
 }
 
-/** 里程碑備份小卡「先不用，下次再說」：記下目前的未備份數當基準，下次要再累積 30 次才會重新出現。 */
+/** 里程碑備份小卡「先不用，下次再說」：節數與天數兩條規則各自記下基準
+ *  （節數要再累積 30 次、天數要再過 14 天，才會重新出現）。 */
 export function snoozeBackupNudge(state) {
   state.settings.backupNudgeBase = unbackedUpCount(state);
+  state.settings.backupNudgeSnoozedAt = new Date().toISOString();
   save(state);
+}
+
+// ---------------------------------------------------------------------------
+// 資料保命（SPEC_M14 §4）
+// ---------------------------------------------------------------------------
+
+const DAY_MS = 86400000;
+const NUDGE_MIN_SESSIONS = 3; // 未備份少於這個數字一律不打擾（剛開始用的人不該被嚇）
+const NUDGE_COUNT_STEP = 30; // 節數規則：未備份 30 次
+const NUDGE_DAYS_STEP = 14; // 天數規則：距上次備份 14 天
+
+function daysBetween(fromIso, now) {
+  const from = new Date(fromIso).getTime();
+  if (Number.isNaN(from)) return null;
+  return Math.floor((new Date(now).getTime() - from) / DAY_MS);
+}
+
+/**
+ * 距上次備份幾天；從未備份過則從「最早一節」算起（那才是資料真正開始累積的時間）。
+ * 完全沒有已結束的節時回傳 null。
+ * @returns {number|null}
+ */
+export function daysSinceLastBackup(state, now = new Date()) {
+  const last = state.settings.lastBackupAt;
+  if (last) return daysBetween(last, now);
+  const finished = state.sessions.filter((s) => s.endedAt !== null);
+  if (finished.length === 0) return null;
+  const earliest = finished.reduce((min, s) => (s.startedAt < min ? s.startedAt : min), finished[0].startedAt);
+  return daysBetween(earliest, now);
+}
+
+/**
+ * 該不該提醒備份，以及要用哪個理由講（SPEC_M14 §4.2a）。
+ *
+ * 原本只有「未備份節數 ≥ 30」一條規則，對「練了 5 次、隔兩週回來發現資料被瀏覽器
+ * 清掉」這個情境完全來不及——而那是最容易永久流失的使用者。改成節數／天數二者
+ * 取先到，兩條規則的 snooze 也各自獨立（按了「先不用」之後，節數要再多 30 次，
+ * 天數要再過 14 天）。
+ * @returns {{count:number, days:number|null, reason:'count'|'days'}|null} null＝不提醒
+ */
+export function backupNudge(state, now = new Date()) {
+  const count = unbackedUpCount(state);
+  if (count < NUDGE_MIN_SESSIONS) return null;
+
+  const days = daysSinceLastBackup(state, now);
+  const base = typeof state.settings.backupNudgeBase === 'number' ? state.settings.backupNudgeBase : null;
+  const countReached = count >= (base === null ? NUDGE_COUNT_STEP : base + NUDGE_COUNT_STEP);
+
+  const snoozedAt = state.settings.backupNudgeSnoozedAt;
+  const sinceSnooze = snoozedAt ? daysBetween(snoozedAt, now) : null;
+  const daysReached =
+    days !== null && days >= NUDGE_DAYS_STEP && (sinceSnooze === null || sinceSnooze >= NUDGE_DAYS_STEP);
+
+  if (!countReached && !daysReached) return null;
+  // 兩條同時成立時講節數：那是使用者自己看得到、也比較有感的數字。
+  return { count, days, reason: countReached ? 'count' : 'days' };
+}
+
+/** 「加到主畫面」引導看過了／不想看了。 */
+export function dismissA2hs(state) {
+  if (state.settings.a2hsDismissed) return;
+  state.settings.a2hsDismissed = true;
+  save(state);
+}
+
+/** 已結束的練習節數（A2HS 卡的出現門檻用：練過兩次才值得叫人裝起來）。 */
+export function finishedSessionCount(state) {
+  return state.sessions.filter((s) => s.endedAt !== null).length;
 }
