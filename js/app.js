@@ -280,6 +280,7 @@ function renderSettings() {
             <li>50-40-90 俱樂部成員</li>
             <li>歷史三分命中數前列</li>
           </ul>
+          <p class="about-card__lead">三條標準<strong>依聯盟各自認定</strong>：NBA 看 NBA 的紀錄，WNBA 看 WNBA 的紀錄。Diana Taurasi 是 WNBA 史上三分命中數與得分數雙料第一，依第三條入選。</p>
           <div class="about-card__notes">
             <p class="about-card__note">Jeremy Lin 不在射手等級之列，但作為起手模式保留——切入型後衛的中距＋罰球基本功，正好是階梯第一關的難度定位。</p>
             <p class="about-card__note">Curry / Jeremy Lin / Klay 等訓練菜單，皆為依公開報導風格改編的靈感版本，與當事人無關、非官方授權內容。</p>

@@ -379,6 +379,13 @@ function evaluateSignature(menuId, rounds) {
       const g = groupTotals(rounds.slice(-3), () => true);
       return g.pct !== null && g.pct >= 60;
     }
+    case 'taurasi': {
+      // 全射程：中距與三分同場都 ≥50%（任一種沒出手就不成立）。
+      // 對應「罰球線到三分線之間全是她的區域」——只有一種距離準不算全射程。
+      const mid = groupTotals(rounds, (r) => r.type === '2pt');
+      const three = groupTotals(rounds, (r) => r.type === '3pt');
+      return mid.pct !== null && mid.pct >= 50 && three.pct !== null && three.pct >= 50;
+    }
     case 'bird': {
       // 50-40-90：同一場 2 分 ≥50%、3 分 ≥40%、罰球 ≥90%（任一種沒出手就不成立）。
       const two = groupTotals(rounds, (r) => r.type === '2pt');

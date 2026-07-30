@@ -10,7 +10,7 @@ import {
 // menus.js / stats.js 都是無相依的純資料／純函式模組，這裡 import 不會形成循環。
 
 const KEY = 'shotledger_v1';
-const SCHEMA_VERSION = 14;
+const SCHEMA_VERSION = 15;
 
 function emptyProgress() {
   // passed：明確記錄「已通過」的 menu id（SPEC_M11 §4.1）。舊版沒有這個欄位，
@@ -310,6 +310,26 @@ function migrate(data) {
     if (!('backupNudgeSnoozedAt' in data.settings)) data.settings.backupNudgeSnoozedAt = null;
     if (!('a2hsDismissed' in data.settings)) data.settings.a2hsDismissed = false;
     data.schema = 14;
+  }
+
+  if (data.schema < 15) {
+    // 階梯 15 → 16 關（SPEC_M16）：第 10 關插入 taurasi，其後所有關卡 tier +1
+    // （id 全部沒動，所以 progress 的 unlocked／passed／best／stars 都不用改名）。
+    //
+    // 照 ADDING_A_TIER §3 的「插在中間」規則：已解鎖新關**後面那一關**（lillard）
+    // 的人，代表他早就走過這個位置，補解鎖 taurasi，否則會憑空多出一道牆。
+    //
+    // ⚠️ 只補 unlocked，**絕不寫進 passed**（SPEC_M11 §4.1 修過的洞）：通過是明確
+    // 記錄的狀態，新插入的關卡永遠是「可以打」，不能因為改版就變成「已通過」。
+    if (!data.progress || typeof data.progress !== 'object') data.progress = emptyProgress();
+    if (!Array.isArray(data.progress.unlocked)) data.progress.unlocked = [];
+    if (
+      data.progress.unlocked.includes('lillard') &&
+      !data.progress.unlocked.includes('taurasi')
+    ) {
+      data.progress.unlocked.push('taurasi');
+    }
+    data.schema = 15;
   }
 
   // 保底：不管資料是從哪個版本進來的，progress / settings.inputMode / settings.weeklyGoal / settings.theme / settings.cardBg / settings.homeSeen / settings.backupNudgeBase 形狀都要正確。

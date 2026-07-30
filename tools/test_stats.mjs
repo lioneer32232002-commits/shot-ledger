@@ -566,6 +566,18 @@ test('★2 bird 50-40-90：三條全過剛好成立；罰球 89% 不成立；完
   assert.equal(evaluateStars(birdMenu, no3pt).signature, false);
 });
 
+test('★2 taurasi 全射程：中距與三分同場都 ≥50% 才成立；只有一種距離準不算', () => {
+  const taurasiMenu = { id: 'taurasi', challenge: true, passRule: [{ type: '2pt', minPct: 55 }, { type: '3pt', minPct: 40 }] };
+  const bothPass = { variant: 'full', mode: 'taurasi', rounds: customRounds([['2pt', 20, 10], ['3pt', 20, 10], ['ft', 20, 17]]) }; // 50 / 50
+  const threeOnly = { variant: 'full', mode: 'taurasi', rounds: customRounds([['2pt', 20, 9], ['3pt', 20, 14]]) }; // 45 / 70
+  const midOnly = { variant: 'full', mode: 'taurasi', rounds: customRounds([['2pt', 20, 16], ['3pt', 20, 9]]) }; // 80 / 45
+  const noThree = { variant: 'full', mode: 'taurasi', rounds: customRounds([['2pt', 20, 16], ['ft', 20, 18]]) };
+  assert.equal(evaluateStars(taurasiMenu, bothPass).signature, true);
+  assert.equal(evaluateStars(taurasiMenu, threeOnly).signature, false);
+  assert.equal(evaluateStars(taurasiMenu, midOnly).signature, false);
+  assert.equal(evaluateStars(taurasiMenu, noThree).signature, false);
+});
+
 test('非挑戰菜單或空 rounds → 三星全 false', () => {
   const none = { unlock: false, signature: false, high: false };
   assert.deepEqual(evaluateStars({ id: 'free', challenge: false, passRule: null }, starsSession('free', [['paint', '2pt', 9]])), none);

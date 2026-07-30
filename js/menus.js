@@ -57,6 +57,22 @@
 //   club」。basis 來源＝Yahoo Sports 訓練報導（見下方 basis.url）。
 // ⚠️ 事實更正：使用者原提議的 Allen Iverson 沒有拿過 FMVP、也沒拿過總冠軍
 //   （2001 年他拿的是例行賽 MVP，該年 FMVP 是 Shaquille O'Neal），因此不列入階梯。
+//
+// 2026-07-30 查證紀錄（SPEC_M16：插入第 10 關 taurasi，階梯 15 → 16 關）：
+// - Diana Taurasi（WNBA 2004–2024，20 季，2025-02 宣布退休）：
+//   生涯百分比雙來源＝StatMuse 生涯總計頁 statmuse.com/wnba/ask/diana-taurasi-career-stats
+//   ＋ Wikipedia「Diana Taurasi」WNBA career statistics 表，2026-07-30 交叉核對一致
+//   （565 場、FG 42.5%、3P 36.0%、FT 87.0%、10,646 分）。
+//   生涯三分命中數雙來源＝ESPN 退休報導 espn.com/wnba/story/_/id/44013848（例行賽
+//   1,447 顆、季後賽 215 顆）＋ StatMuse 逐季加總同為 1,447，一致。
+//   ⚠️ 查證過程中出現過 **1,284** 這個數字（某篇報導引述），與上述兩個來源都對不起來，
+//   已捨棄不用——這正是雙來源規則要擋的東西，日後看到 1,284 不要拿去改 tpm。
+//   basis 來源＝ESPN 2023 萬分專題 espn.com/espn/feature/story/_/id/37825466：
+//   內含「最喜歡的區域是罰球線到三分線之間」與「休賽季每週兩次、每次 400〜500 球、
+//   刻意用不舒服的節奏投」兩段，菜單即依此改編。
+// - 射手等級界定：Taurasi 是 WNBA 史上三分命中數第一，符合既有三條標準中的
+//   「歷史三分命中數前列」。標準本身不改，只是**依聯盟各自認定**（NBA 看 NBA、
+//   WNBA 看 WNBA），設定頁的「射手等級界定標準」說明已同步這一點。
 
 export const MENUS = [
   {
@@ -186,7 +202,21 @@ export const MENUS = [
     },
   },
   {
-    id: 'lillard', name: 'Lillard 深三專項', short: 'Lillard 深三', player: 'Damian Lillard', playerStatus: 'active', tier: 10,
+    id: 'taurasi', name: 'Diana Taurasi 全射程', short: 'Taurasi 射程', player: 'Diana Taurasi', playerStatus: 'retired', tier: 10,
+    focus: '罰球線到三分線全是她的區域：中距與三分逐輪交替，距離一直換就是不舒服的節奏', inspired: true, challenge: true,
+    passRule: [{ type: '2pt', minPct: 55 }, { type: '3pt', minPct: 40 }],
+    passDesc: '2 分 ≥55% 且 3 分 ≥40%',
+    signature: { label: '全射程', desc: '中距與三分同場都 ≥50%' },
+    full: ['mid_top', '3pt_top', 'ft', 'mid_lw', '3pt_lw', 'mid_rw', '3pt_rw', 'ft', 'mid_lc', '3pt_lc', 'mid_rc', '3pt_rc', 'ft', 'mid_top', '3pt_top'],
+    est: { full: 75 },
+    career: { label: 'WNBA 生涯 2004–24', years: '2004–2024', fg: 42.5, tp: 36.0, ft: 87.0, tpm: 1447, fact: 'WNBA 史上得分王兼三分王（10,646 分、1,447 顆三分），3 座總冠軍、2 次總冠軍賽 MVP' },
+    basis: {
+      text: '取材自 Taurasi 受訪談到的休賽季訓練——每週兩次、每次 400〜500 球，刻意用「不舒服的節奏」投；她自陳最喜歡的區域是「罰球線到三分線之間」。這裡改編成中距與三分逐輪交替的自投自撿版本，定點配置為本 App 設計，非本人菜單',
+      source: 'ESPN 2023', url: 'https://www.espn.com/espn/feature/story/_/id/37825466/diana-taurasi-10000-points-wnba-all-scoring-leader',
+    },
+  },
+  {
+    id: 'lillard', name: 'Lillard 深三專項', short: 'Lillard 深三', player: 'Damian Lillard', playerStatus: 'active', tier: 11,
     focus: '深三＋一般三分混合定點', inspired: true, challenge: true,
     passRule: [{ type: 'deep3', minPct: 30 }],
     passDesc: '深 3 ≥30%',
@@ -200,7 +230,7 @@ export const MENUS = [
     },
   },
   {
-    id: 'brunson', name: 'Jalen Brunson 冠軍中距', short: 'Brunson 中距', player: 'Jalen Brunson', playerStatus: 'active', tier: 11,
+    id: 'brunson', name: 'Jalen Brunson 冠軍中距', short: 'Brunson 中距', player: 'Jalen Brunson', playerStatus: 'active', tier: 12,
     focus: '腳步換空間的中距課：罰球線頂與兩翼反覆拉桿，切入收尾，罰球穩住', inspired: true, challenge: true,
     passRule: [{ type: '2pt', minPct: 55 }, { type: 'ft', minPct: 80 }],
     passDesc: '2 分 ≥55% 且罰球 ≥80%',
@@ -214,7 +244,7 @@ export const MENUS = [
     },
   },
   {
-    id: 'lin_taiwan', name: 'Jeremy Lin 台灣時期', short: 'Lin 台灣', player: 'Jeremy Lin', playerStatus: 'retired', tier: 12,
+    id: 'lin_taiwan', name: 'Jeremy Lin 台灣時期', short: 'Lin 台灣', player: 'Jeremy Lin', playerStatus: 'retired', tier: 13,
     focus: '深三＋切入終結的國王風格：logo shot 果斷出手，上籃左右開弓', inspired: true, challenge: true,
     passRule: [{ type: 'deep3', minPct: 32 }, { type: 'layup', minPct: 70 }],
     passDesc: '深 3 ≥32% 且上籃 ≥70%',
@@ -228,7 +258,7 @@ export const MENUS = [
     },
   },
   {
-    id: 'curry_mvp', name: 'Curry MVP 球季', short: 'Curry MVP', player: 'Stephen Curry', playerStatus: 'active', tier: 13,
+    id: 'curry_mvp', name: 'Curry MVP 球季', short: 'Curry MVP', player: 'Stephen Curry', playerStatus: 'active', tier: 14,
     focus: '由近而遠爬坡：中距→三分→深三，一趟一趟拉遠', inspired: true, challenge: true,
     passRule: [{ type: '3pt', minPct: 42 }],
     passDesc: '3 分 ≥42%',
@@ -242,7 +272,7 @@ export const MENUS = [
     },
   },
   {
-    id: 'bird', name: 'Larry Bird 全能射手', short: 'Bird 全能', player: 'Larry Bird', playerStatus: 'retired', tier: 14,
+    id: 'bird', name: 'Larry Bird 全能射手', short: 'Bird 全能', player: 'Larry Bird', playerStatus: 'retired', tier: 15,
     focus: '全點位射手課：五個三分點跑遍，中距補強，罰球線收尾', inspired: true, challenge: true,
     passRule: [{ type: '3pt', minPct: 42 }, { type: 'ft', minPct: 85 }],
     passDesc: '3 分 ≥42% 且罰球 ≥85%',
@@ -256,7 +286,7 @@ export const MENUS = [
     },
   },
   {
-    id: 'curry', name: 'Curry 終極試煉', short: 'Curry 試煉', player: 'Stephen Curry', playerStatus: 'active', tier: 15,
+    id: 'curry', name: 'Curry 終極試煉', short: 'Curry 試煉', player: 'Stephen Curry', playerStatus: 'active', tier: 16,
     focus: '全三分點＋深三＋罰球綜合定點', inspired: true, challenge: true,
     passRule: [{ type: '3pt', minPct: 45 }, { type: 'deep3', minPct: 35 }],
     passDesc: '3 分 ≥45% 且深 3 ≥35%（全破＝獲得徽章）',

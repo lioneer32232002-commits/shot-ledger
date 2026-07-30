@@ -15,7 +15,8 @@
   解鎖「前 5 球 vs 後 5 球」的專注度分析。
 - **球場點位熱區圖**：FIBA 標準半場 15 個定點（含 3 個深三點），先點位置再投，
   自動累積個人 shot chart——不需要任何測距。
-- **射手挑戰階梯**：六關（Lin → Dirk → Ray Allen → Klay → Lillard → Curry），
+- **射手挑戰階梯**：16 關（Lin 哈佛 → Dirk → Ray Allen → Klay → **Diana Taurasi** →
+  Lillard → Brunson → Bird → Curry 終極試煉，含 NBA／WNBA／TPBL 各階段），
   每關的訓練菜單取材自該球員公開報導的真實訓練/賽前儀式（App 內附出處連結），
   完整版達標才解鎖下一關。
 - **連莊**：一輪達到該球種門檻（罰球／上籃 8、2 分 6、3 分 5、深 3 4，每 10 球）
