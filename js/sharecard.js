@@ -861,6 +861,12 @@ const LT_BADGE_DISC_MIN = 76; // 極端資料縮到底的下限（沿用舊版�
 const LT_BADGE_DISC_GAP = 24;
 const LT_BADGE_ROW_GAP = 24; // 徽章列與列之間的列距（兩列或三列都用這個值）
 const LT_BADGE_PER_ROW = 7; // 7×112 + 6×24 = 928 剛好滿版（CARD_W - marginX*2）
+// 22 顆以上改成一列 8 顆（SPEC_M21）：徽章定義總數是 24（加了上籃家族），
+// 一列 7 顆 ×3 列＝21 格畫不完，最後一格會變成「＋N」——收藏全滿的人卡片上卻看不到
+// 全滿，這個訊息是錯的。8×95 + 7×24 = 928 同樣剛好滿版，只是圓盤從 112 縮到 95。
+// 刻意只在「超過 21 顆」時才切換：21 顆以下的人版面完全不變，圓盤維持 112。
+const LT_BADGE_PER_ROW_WIDE = 8;
+const LT_BADGE_SLOTS_NARROW = LT_BADGE_PER_ROW * 3; // 21
 const LT_GAP_PCT_TO_DETAIL = 22;
 const LT_GAP_BRAND = 34; // 品牌列到標題：固定值，不參與剩餘空間分配
 const LT_GAP_TITLE_BASE = 30; // 標題到主數字帶（可分配）
@@ -887,13 +893,24 @@ const LT_MAX_EXTRA_PER_GAP = 90; // 每個可分配間隙最多再加這麼多
  * @param {number} topY 第一列圓盤頂緣 y
  * @returns {{rows: Array<Array<{cx:number, cy:number, type:('icon'|'plus'), index?:number}>>, height:number, numRows:number, plusN:number}}
  */
+/** 這個徽章數要用一列幾顆（見 LT_BADGE_PER_ROW_WIDE 的說明）。 */
+function badgesPerRow(count) {
+  return count > LT_BADGE_SLOTS_NARROW ? LT_BADGE_PER_ROW_WIDE : LT_BADGE_PER_ROW;
+}
+
+/** 該 perRow 下橫向排得下的最大圓盤直徑（扣掉左右邊界與盤間距後平分）。 */
+function maxDiscForRow(perRow, discGap, marginX) {
+  return (CARD_W - marginX * 2 - (perRow - 1) * discGap) / perRow;
+}
+
 function layoutBadgeRows(count, discD, discGap, rowGap, marginX, topY) {
   if (count <= 0) return { rows: [], height: 0, numRows: 0, plusN: 0 };
 
-  const MAX_SLOTS = LT_BADGE_PER_ROW * 3; // 21：三列上限
+  const perRow = badgesPerRow(count);
+  const MAX_SLOTS = perRow * 3; // 三列上限：21（一列 7）或 24（一列 8）
   const showPlus = count > MAX_SLOTS;
   const iconsShown = showPlus ? MAX_SLOTS - 1 : count; // showPlus 時只畫 20 顆圖示，最後一格是 +N
-  const numRows = Math.min(3, Math.ceil(iconsShown / LT_BADGE_PER_ROW));
+  const numRows = Math.min(3, Math.ceil(iconsShown / perRow));
 
   const rows = [];
   let idx = 0;
@@ -901,7 +918,7 @@ function layoutBadgeRows(count, discD, discGap, rowGap, marginX, topY) {
     const rowCy = topY + r * (discD + rowGap) + discD / 2;
     const isLastRow = r === numRows - 1;
     const remaining = iconsShown - idx;
-    const rowIconCount = isLastRow ? remaining : Math.min(LT_BADGE_PER_ROW, remaining);
+    const rowIconCount = isLastRow ? remaining : Math.min(perRow, remaining);
     const row = [];
     let cx = marginX + discD / 2;
     for (let i = 0; i < rowIconCount; i++) {
@@ -1019,6 +1036,13 @@ function computeLifetimeLayout(ctx, data) {
   const badgeLabelMetrics = measureAscDesc(ctx, badgeLabelText, badgeLabelFont);
   const badgeList = data.badges.list || [];
 
+  // 圓盤上限同時受兩個約束：LT_BADGE_DISC_MAX（設計上限）與該列數橫向排得下的寬度。
+  // 一列 8 顆時後者是 95px，比設計上限小，所以它才是真正的上限。
+  const badgeDiscMax = Math.min(
+    LT_BADGE_DISC_MAX,
+    maxDiscForRow(badgesPerRow(badgeList.length), LT_BADGE_DISC_GAP, marginX)
+  );
+
   let badgeContentHeightMax = 0;
   let emptyText = '';
   let emptyFont = '';
@@ -1029,7 +1053,7 @@ function computeLifetimeLayout(ctx, data) {
     emptyMetrics = measureAscDesc(ctx, emptyText, emptyFont);
     badgeContentHeightMax = emptyMetrics.asc + emptyMetrics.desc;
   } else {
-    badgeContentHeightMax = layoutBadgeRows(badgeList.length, LT_BADGE_DISC_MAX, LT_BADGE_DISC_GAP, LT_BADGE_ROW_GAP, marginX, 0).height;
+    badgeContentHeightMax = layoutBadgeRows(badgeList.length, badgeDiscMax, LT_BADGE_DISC_GAP, LT_BADGE_ROW_GAP, marginX, 0).height;
   }
   const badgeBandHeightMax = badgeLabelMetrics.asc + badgeLabelMetrics.desc + LT_GAP_BADGE_LABEL_TO_ROW + badgeContentHeightMax;
 
@@ -1047,12 +1071,12 @@ function computeLifetimeLayout(ctx, data) {
 
   // ---- 分配剩餘空間／或在資料極端時縮徽章圓盤，兩者互斥 ----
   let extra = 0;
-  let discD = LT_BADGE_DISC_MAX;
+  let discD = badgeDiscMax;
   if (slack >= 0) {
     extra = Math.min(slack / 4, LT_MAX_EXTRA_PER_GAP);
   } else if (badgeList.length > 0) {
     const deficit = -slack;
-    const trial = layoutBadgeRows(badgeList.length, LT_BADGE_DISC_MAX, LT_BADGE_DISC_GAP, LT_BADGE_ROW_GAP, marginX, 0);
+    const trial = layoutBadgeRows(badgeList.length, badgeDiscMax, LT_BADGE_DISC_GAP, LT_BADGE_ROW_GAP, marginX, 0);
     // rowGaps：三列（17 顆全滿）有 2 個列距要扣，不是固定 1 個——沿用兩列時代
     // 留下的 `numRows>1 ? rowGap : 0` 在三列時會少扣一個列距，圓盤會算得比實際
     // 能塞下的還大，改用 (numRows-1)*rowGap 才對兩列／三列都成立。

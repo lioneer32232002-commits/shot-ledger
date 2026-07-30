@@ -37,11 +37,9 @@ export const BADGE_LABEL = {
 
 // 全部 24 顆依家族＋成就順序（出席 5／進球 6／三分 4／上籃 3／摘星 3／階梯 3）。capstone＝全破階梯，在牆上跨滿整列當壓軸。stars_full 與
 // ladder_complete 的 target 為 null＝動態算（關數 × 3／關數），關數再變也不用改定義。
-// ⚠️ 生涯分享卡一次只畫得下 21 顆（sharecard.js layoutBadgeRows：三列 ×7，超過就把
-// 最後一格換成「＋N」）。加了上籃家族後定義總數是 24，所以「已獲得 22 顆以上」的人
-// 卡片上會出現 ＋N——那是既有的溢出設計，不是壞掉；要真的畫滿 24 顆得改成一列 8 顆
-// （圓盤要從 112px 縮到 95px）或加第四列（吃掉固定卡高的垂直空間），兩者都會動到
-// 已經調好的版面，留待日後真有需要再處理（SPEC_M20 §1.3）。
+// 生涯分享卡畫得下全部 24 顆（SPEC_M21）：sharecard.js 的 layoutBadgeRows 在「已獲得
+// 超過 21 顆」時自動改成一列 8 顆、圓盤 112→95px；21 顆以下版面完全不變。
+// ⚠️ 再加家族之前先確認那邊：一列 8 顆的三列上限是 24，第 25 顆會開始出現「＋N」。
 const BADGE_DEFS = [
   { id: 'streak_3', icon: 'flame', kind: 'streak', target: 3 },
   { id: 'streak_7', icon: 'flame', kind: 'streak', target: 7 },
