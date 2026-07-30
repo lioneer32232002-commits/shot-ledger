@@ -873,7 +873,15 @@ function streakPipsHtml(rounds, opts = {}) {
   `;
 }
 
-/** 這一節出現過的球種各自的連莊門檻，例：「3 分 5・深 3 4・罰球 8」。 */
+/**
+ * 這一節出現過的球種各自的連莊門檻。
+ *
+ * ⚠️ 文案曾經寫成「門檻 2 分 6・上籃 8（每 10 球）」，使用者實際回報**看不懂**：
+ * 「2 分 6」沒有單位也沒有分母，讀起來像「2 分球要進 6 球」還是「6 成」都說得通。
+ * 現在一律寫完整句子：「達標＝每 10 球投進：2 分 6 顆・上籃 8 顆」——
+ * 「每 10 球」講清楚分母（實投不是 10 球時會等比換算）、「顆」講清楚單位。
+ * 數字旁邊沒有單位的縮寫在這個 App 裡不要再出現。
+ */
 function streakBarNote(rounds) {
   const seen = [];
   for (const r of rounds || []) {
@@ -881,9 +889,9 @@ function streakBarNote(rounds) {
   }
   const parts = seen
     .filter((t) => STREAK_BAR_PER_10[t] !== undefined)
-    .map((t) => `<span class="nowrap">${typeLabel(t)} ${STREAK_BAR_PER_10[t]}</span>`);
+    .map((t) => `<span class="nowrap">${typeLabel(t)}進 ${STREAK_BAR_PER_10[t]} 顆</span>`);
   if (!parts.length) return '';
-  return `門檻 ${parts.join('・')}（每 10 球）`;
+  return `<strong>達標</strong>＝每 10 球裡：${parts.join('・')}`;
 }
 
 /**
@@ -902,18 +910,20 @@ function renderStreakRailHtml(rounds, typeForRound, attempts) {
     cls += ' is-live';
     num = current;
     label = '連莊中';
-    hint = bar === null ? '' : `本輪進 <strong>${bar}</strong> 顆續莊`;
+    hint = bar === null ? '' : `本輪投進 <strong>${bar}</strong> 顆續莊`;
   } else if (best > 0) {
     num = best;
     label = '本節最長';
-    hint = bar === null ? '' : `本輪進 <strong>${bar}</strong> 顆重新開莊`;
+    hint = bar === null ? '' : `本輪投進 <strong>${bar}</strong> 顆重新開莊`;
   } else if (bar !== null) {
     // 一輪都還沒達標：門檻自己當主角（放 0 只是在提醒使用者「你什麼都沒有」）。
-    // 這個狀態下 hint 不能再講一次同一個數字，否則變成「5 開莊門檻／本輪進 5 顆開莊」。
+    // hint 這裡刻意把數字再講一次——原本為了避免重複只寫「達到就開始連莊」，但
+    // 光看「5 ／ 開莊門檻」不知道 5 是幾顆還是幾成（使用者實際回報過看不懂的正是
+    // 這種沒有單位的縮寫）。寧可重複一次數字，也要讓句子自己說得完整。
     cls += ' is-idle';
     num = bar;
     label = '開莊門檻';
-    hint = '達到就開始連莊';
+    hint = `本輪投進 <strong>${bar}</strong> 顆就開莊`;
   } else {
     return '';
   }
@@ -957,9 +967,9 @@ function renderStreakCardHtml(session, allSessions) {
         <div class="streak-card__right">
           ${streakPipsHtml(rounds)}
           ${prevBest > 0 ? `<p class="streak-card__meta">生涯最佳 ${prevBest} 輪</p>` : ''}
-          ${note ? `<p class="streak-card__bar">${note}</p>` : ''}
         </div>
       </div>
+      ${note ? `<p class="streak-card__bar">${note}</p>` : ''}
     </section>
   `;
 }
