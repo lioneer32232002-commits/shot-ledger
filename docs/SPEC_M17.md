@@ -17,6 +17,13 @@ JSON-LD Article，寫進 `sitemap.xml`。純靜態、無 build step，`pages dep
 200 ＋ 整份 index.html**。所以檔案必須真的存在，否則 Google 會抓到 App 首頁內容而
 判定重複。本次已逐頁抓取確認回的是文章本體、不是 App 殼。
 
+⚠️ **第二個坑（上線後才發現）：Cloudflare Pages 會自動做 clean URL**——
+`/stories/ray-allen.html` 會 **308 轉址**到 `/stories/ray-allen`。所以
+canonical／og:url／JSON-LD url／sitemap／站內連結一律寫**無副檔名**的正規形式，
+否則 canonical 指向一個會轉址的網址、sitemap 也全是轉址。
+副作用：本機的 `python -m http.server` **不做 clean URL**，站內連結在本機會 404——
+本機要驗頁面本身請直接開 `.../ray-allen.html`。這是 dev/prod 差異，不是 bug。
+
 ## 2. 檔案
 
 ```
