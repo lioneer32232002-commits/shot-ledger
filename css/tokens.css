@@ -23,6 +23,10 @@
    */
   --color-fill-accent: #B8430A;
   --color-on-fill: #FFFFFF;
+  /* accent 當「文字色」用時的值。淺色底要壓深（#E8590C 在白底只有 3.4:1），
+     深色底則要提亮（#B8430A 壓在 sunken 上只有 4.28:1）——同一顆 accent 在兩個
+     主題當文字的正解剛好相反，所以獨立成一顆 token，不要就地寫 accent-dark。 */
+  --color-accent-text: #B8430A;
 
   --color-bg: #FAF9F7;
   --color-surface: #FFFFFF;
@@ -32,6 +36,12 @@
 
   --color-text: #201A15;
   --color-text-muted: #6B6053;
+  /* --color-text-faint 只准用在「純裝飾」：圖示、分隔符、虛線框，以及 ≥24px 的大字
+   * （SPEC_M18 §5，2026-07-30 定案）。
+   * 原因：它在淺色底只有 3.26〜3.43:1，AA 小字要 4.5——凡是承載資訊的標籤（區塊標題、
+   * 關卡名、徽章進度、座標軸標籤…）用它都不及格。當時全站有 58 處使用，48 處是資訊
+   * 而不是裝飾，已一次改用 muted。
+   * ⚠️ 新寫樣式時：「這行字拿掉會不會少一個資訊？」會 → 用 muted，不會 → 才可以 faint。 */
   --color-text-faint: #94897A;
   --color-text-on-accent: #FFFFFF; /* @deprecated：改用 --color-on-fill */
 
@@ -56,6 +66,10 @@
   --color-night-line: #35517A;
   --color-on-night: #FAF9F7;
   --color-on-night-muted: rgba(250, 249, 247, 0.62);
+  /* 夜幕面板上的 accent 文字：面板在兩個主題下都是深藍，所以這顆不隨主題變。
+     品牌橘直接壓在 #1F3A5F 上只有 3.21:1（accent-text 更慘 2.1，那顆是為淺色底調的），
+     提亮到 #FF8A4C 才有 4.92:1——仍然明顯是同一支橘，只是為深藍底調亮。 */
+  --color-accent-on-night: #FF8A4C;
 
   /* ---- 字級 ---- */
   --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC",
@@ -124,6 +138,7 @@
   /* 暗底要亮色塊才看得出是 accent，所以色塊維持亮橘、文字改近黑（見上方說明）。 */
   --color-fill-accent: #F2691D;
   --color-on-fill: #16130F;
+  --color-accent-text: #F2691D;
 
   --color-bg: #16130F;
   --color-surface: #201B16;

@@ -97,10 +97,22 @@ function defaultRoute() {
   return store.load().settings.homeSeen ? 'train' : HOME_ROUTE;
 }
 
+/**
+ * 解析 hash，回傳 { tab, tier }。
+ * 支援 `#/train?tier=<menuId>`——射手檔案（/stories/）的入口用它直接指到某一關
+ * （SPEC_M19）。tier 只是「指路」，不是後門：解不解得開由 session.js 依 progress
+ * 判定，鎖著的關卡只會被捲到畫面上並顯示解鎖條件，不會被打開。
+ */
 function parseHash() {
-  const raw = (location.hash || '').replace(/^#\/?/, '');
-  if (raw === HOME_ROUTE) return HOME_ROUTE; // 手動打 #/home 永遠回得去，不管 homeSeen
-  return VALID_TABS.includes(raw) ? raw : defaultRoute();
+  const rawFull = (location.hash || '').replace(/^#\/?/, '');
+  const [raw, query] = rawFull.split('?');
+  let tier = null;
+  if (query) {
+    const m = /(?:^|&)tier=([A-Za-z0-9_]+)/.exec(query);
+    if (m) tier = m[1];
+  }
+  if (raw === HOME_ROUTE) return { tab: HOME_ROUTE, tier: null }; // 手動打 #/home 永遠回得去
+  return { tab: VALID_TABS.includes(raw) ? raw : defaultRoute(), tier };
 }
 
 function updateTabBar(activeTab) {
@@ -117,10 +129,13 @@ function updateTabBar(activeTab) {
 }
 
 function render() {
-  const tab = parseHash();
+  const { tab, tier } = parseHash();
+  // tier 用完就從網址上抹掉（replaceState 到乾淨的 #/train）：否則按上一頁／重新整理
+  // 會重複觸發「指到某一關」，而使用者早就往下操作了。
   if (location.hash !== `#/${tab}`) {
     history.replaceState(null, '', `#/${tab}`);
   }
+  if (tier && tab === 'train') trainPage.requestFocusTier(tier);
   if (currentModule && typeof currentModule.unmount === 'function') {
     currentModule.unmount();
   }
@@ -342,7 +357,7 @@ function renderSettings() {
     settingsState = store.clearAll();
     clearConfirmText = '';
     renderSettings();
-    updateTabBar(parseHash());
+    updateTabBar(parseHash().tab);
   });
 }
 
@@ -360,7 +375,7 @@ function onImportFileChosen(e) {
     try {
       settingsState = store.importJSON(text);
       renderSettings();
-      updateTabBar(parseHash());
+      updateTabBar(parseHash().tab);
       showSettingsMessage('匯入成功，資料已整份取代。');
     } catch (err) {
       showSettingsMessage(err.message || '匯入失敗');

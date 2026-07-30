@@ -39,7 +39,7 @@ a { color: inherit; }
   text-decoration: none;
 }
 
-.story__back:hover { color: var(--color-accent); }
+.story__back:hover { color: var(--color-accent-text); }
 
 /* ---------------------------------------------------------------------- */
 /* 刊頭：關卡序號當浮水印（呼應 App 內 hero 卡與徽章數字盤的同一套語彙）      */
@@ -74,7 +74,7 @@ a { color: inherit; }
   font-size: 11px;
   font-weight: 800;
   letter-spacing: .18em;
-  color: var(--color-accent-dark);
+  color: var(--color-accent-text);
 }
 
 .masthead__name {
@@ -152,7 +152,7 @@ a { color: inherit; }
   font-size: var(--text-xs);
   font-weight: 800;
   letter-spacing: .14em;
-  color: var(--color-accent-dark);
+  color: var(--color-accent-text);
   margin-bottom: var(--space-3);
 }
 
@@ -276,6 +276,15 @@ a { color: inherit; }
   border-radius: var(--radius-md);
 }
 
+/* CTA 下方的誠實補充：階梯不給跳關，先講清楚點下去會發生什麼（SPEC_M19 §1） */
+.cta-note {
+  margin-top: var(--space-3);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
 .cta--ghost {
   margin-top: var(--space-3);
   color: var(--color-text);
@@ -326,9 +335,19 @@ a { color: inherit; }
   color: var(--color-text-muted);
 }
 
-.of__nm { font-size: var(--text-sm); font-weight: 700; }
+/* 可點的訊號用底線，不用右箭頭：一整排「→」是最沒有個性的 CTA 語彙，而底線是
+   印刷與網頁一直以來就在用的連結標記，跟這幾頁的雜誌調性也合。 */
+.of__nm {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-color: var(--color-border-strong);
+  text-underline-offset: 3px;
+}
+
+.of:hover .of__nm,
+.of:active .of__nm { text-decoration-color: var(--color-accent-text); }
 .of__fc { font-size: var(--text-xs); line-height: var(--leading-normal); color: var(--color-text-muted); }
-.of__ar { margin-left: auto; color: var(--color-text-muted); }
 
 /* ---------------------------------------------------------------------- */
 /* 索引頁（/stories/）                                                     */
@@ -340,7 +359,7 @@ a { color: inherit; }
   font-size: 11px;
   font-weight: 800;
   letter-spacing: .18em;
-  color: var(--color-accent-dark);
+  color: var(--color-accent-text);
 }
 
 .index-head__h1 {

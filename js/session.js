@@ -55,6 +55,8 @@ let forecastBannerDismissed = false; // M5 §2：不可達標橫幅一旦收合�
 let justFinishedResult = null; // 剛結束本節時算出的挑戰結果（給結束頁做慶祝動畫用）
 let pendingRetry = null; // 從其他分頁按「再挑戰一次」時，記著要開的菜單，等 train 分頁掛載時執行
 let pendingOpen = null; // 從首頁入口卡進來時，記著要開的菜單，等 train 分頁掛載時打開變體面板（SPEC_M6 §3.3）
+let pendingFocusTier = null; // 從射手檔案（#/train?tier=xxx）進來時要指向的關卡，等掛載時處理（SPEC_M19）
+let focusTierId = null; // 目前被「指到」但尚未解鎖的關卡：標記磁磚＋在階梯上方說明還差什麼
 
 function makeEmptySeq(n) {
   return Array.from({ length: n }, () => false);
@@ -85,6 +87,26 @@ export function mount(container) {
     return;
   }
 
+  if (pendingFocusTier) {
+    const menuId = pendingFocusTier;
+    pendingFocusTier = null;
+    const menu = getMenu(menuId);
+    if (menu && menu.challenge) {
+      view = 'home';
+      // 解鎖了才開面板（可以直接開打）；沒解鎖就只是「帶你去看那一關」——
+      // 標記磁磚、捲到它、在上方說明還差什麼。階梯不給跳關（SPEC_M19 §1）。
+      if (store.isMenuUnlocked(state, menuId)) {
+        variantSheetMenuId = menuId;
+        focusTierId = null;
+      } else {
+        variantSheetMenuId = null;
+        focusTierId = menuId;
+      }
+      renderView();
+      return;
+    }
+  }
+
   if (!initialized) {
     initialized = true;
     const inProgress = store.findInProgressSession(state);
@@ -105,6 +127,7 @@ export function unmount() {
   editingSeq = null;
   confirmDiscard = false;
   variantSheetMenuId = null;
+  focusTierId = null; // 離開分頁就不再標記「從射手檔案指過來的那一關」
   menuComplete = false;
   clearTimeout(toastHideTimer);
   toastMessage = null;
@@ -372,6 +395,29 @@ function renderHeroCard(menu, isPassed) {
   `;
 }
 
+/**
+ * 從射手檔案點進來、但那一關還沒解鎖時，階梯上方的說明（SPEC_M19 §1）。
+ * 誠實優先：不假裝可以直接打，而是告訴他這關在哪、還差什麼，把它變成目標。
+ */
+function renderFocusNoteHtml(ladder, passedIds) {
+  if (!focusTierId) return '';
+  const menu = getMenu(focusTierId);
+  if (!menu) return '';
+  const idx = ladder.findIndex((m) => m.id === menu.id);
+  const prev = idx > 0 ? ladder[idx - 1] : null;
+  const prevDone = prev ? passedIds.includes(prev.id) : true;
+  const needLine = prev && !prevDone
+    ? `先通過<strong class="nowrap">第 ${prev.tier} 關・${prev.short || prev.name}</strong>才會開啟。`
+    : '再往前推一關就會開啟。';
+  return `
+    <section class="focus-note">
+      <p class="focus-note__kicker">來自射手檔案</p>
+      <p class="focus-note__body"><strong class="nowrap">第 ${menu.tier} 關・${menu.name}</strong>還沒解鎖——${needLine}階梯是一關一關走的，你會從目前的進度接著練。</p>
+      <p class="focus-note__hint">下面已經幫你把那一關標出來了，門檻先當目標。</p>
+    </section>
+  `;
+}
+
 function renderLadderRow(ladder, unlockedIds, passedIds, currentId) {
   const tiles = ladder.map((m) => {
     const unlocked = unlockedIds.includes(m.id);
@@ -381,6 +427,7 @@ function renderLadderRow(ladder, unlockedIds, passedIds, currentId) {
     if (!unlocked) cls.push('is-locked');
     if (passed) cls.push('is-passed');
     if (isCurrent) cls.push('is-current');
+    if (m.id === focusTierId) cls.push('is-focus');
     // 小格裡不塞整句 passDesc（雙條件＋括號註記會爆版）：直接由 passRule 生成
     // 一條件一行的精簡版；完整說明仍在變體 sheet 的「三星目標」卡。
     const condHtml = (m.passRule || [])
@@ -388,7 +435,7 @@ function renderLadderRow(ladder, unlockedIds, passedIds, currentId) {
       .join('');
     const starsHtml = unlocked ? starRowHtml(state.progress.stars[m.id], { passed, className: 'ladder-tile__stars' }) : '';
     return `
-      <button class="${cls.join(' ')}" ${unlocked ? `data-open-variant="${m.id}"` : 'disabled'}>
+      <button class="${cls.join(' ')}" data-tier-id="${m.id}" ${unlocked ? `data-open-variant="${m.id}"` : 'disabled'}>
         <span class="ladder-tile__tier" aria-hidden="true">${m.tier}</span>
         ${passed ? '<span class="ladder-tile__check" aria-hidden="true">✓</span>' : ''}
         <span class="ladder-tile__body">
@@ -572,6 +619,7 @@ function renderHome() {
   const { ladder, unlockedIds, passedIds, currentMenu } = currentLadderState();
   const heroHtml = renderHeroCard(currentMenu, passedIds.includes(currentMenu.id));
   const quickRestartHtml = renderQuickRestartHtml();
+  const focusNoteHtml = renderFocusNoteHtml(ladder, passedIds);
   const ladderHtml = renderLadderRow(ladder, unlockedIds, passedIds, currentMenu.id);
 
   const secondary = MENUS.filter((m) => !m.challenge);
@@ -589,6 +637,7 @@ function renderHome() {
       `)}
       ${heroHtml}
       ${quickRestartHtml}
+      ${focusNoteHtml}
       ${ladderHtml}
       ${summaryHtml}
       ${badgeStripHtml(state)}
@@ -622,6 +671,17 @@ function renderHome() {
   }
 
   if (variantSheetMenuId) bindVariantSheet();
+
+  // 被「指到」的關卡捲進畫面中央：階梯是橫向捲動列，那一關多半在螢幕外。
+  // 直接算 scrollLeft 而不用 scrollIntoView——後者會連帶把整頁往下捲，
+  // 而 renderView 之後 app.js 才剛把頁面捲回頂端（SPEC_M19 §1）。
+  if (focusTierId) {
+    const scroller = root.querySelector('.ladder-scroll');
+    const tile = root.querySelector(`.ladder-tile[data-tier-id="${focusTierId}"]`);
+    if (scroller && tile) {
+      scroller.scrollLeft = Math.max(0, tile.offsetLeft - (scroller.clientWidth - tile.clientWidth) / 2);
+    }
+  }
 }
 
 function bindVariantSheet() {
@@ -680,6 +740,15 @@ function startSession(modeId, variant) {
 export function requestOpenMenu(menuId) {
   pendingOpen = menuId;
   location.hash = '#/train'; // 只會從 #/home 呼叫，hashchange 必定觸發 router 重新 mount
+}
+
+/**
+ * 從射手檔案（/stories/ 的 `#/train?tier=xxx`）呼叫：帶使用者去看指定的關卡。
+ * 這裡只記下要指向誰，實際處理在 mount()——解鎖了就打開變體面板，沒解鎖就把磁磚
+ * 標出來、捲到它、並在階梯上方說明還差什麼。**絕不因為外部連結就開放未解鎖的關卡**。
+ */
+export function requestFocusTier(menuId) {
+  pendingFocusTier = menuId || null;
 }
 
 /** 從「再挑戰一次」呼叫：不管目前在哪個分頁都能安全重開同菜單同變體。 */
