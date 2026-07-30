@@ -237,9 +237,11 @@ function renderSettings() {
       <section class="settings-card">
         <h2 class="settings-card__title">關於本站</h2>
         <div class="settings-actions">
+          <a class="btn btn--secondary" href="stories/">射手檔案</a>
           <button class="btn btn--secondary" data-action="show-home">重看首頁介紹</button>
           <a class="btn btn--secondary" href="${CONTACT_MAILTO}">聯絡版主</a>
         </div>
+        <p class="settings-card__row">「射手檔案」是站上的獨立文章頁：拆解各關球員的公開訓練報導，附出處。</p>
         <p class="settings-card__row">回報問題或許願功能，會直接開啟你的信箱 App 寄到 <span class="nowrap">${CONTACT_EMAIL}</span>。</p>
       </section>
 

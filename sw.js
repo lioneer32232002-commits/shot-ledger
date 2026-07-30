@@ -11,7 +11,7 @@
 //
 // 改版時把 CACHE_NAME 版號遞增，activate 階段會自動清掉舊版快取。
 
-const CACHE_NAME = 'shotledger-v36';
+const CACHE_NAME = 'shotledger-v37';
 
 const SHELL_URLS = ['./', 'index.html'];
 
@@ -140,14 +140,20 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
+  // /stories/ 是獨立的靜態頁（射手檔案，SPEC_M17），不是 SPA 的殼：它們也是 navigate
+  // 請求，但**絕不可以 fallback 到 index.html**——那會讓離線點進故事頁的人拿到 App
+  // 首頁，看起來像網站壞了。用一般靜態資源策略（cache-first，沒有就回源）即可。
+  const isStory = url.pathname.startsWith('/stories/');
+
   // 「殼」＝真正的導覽請求，或明確指向 index.html／根路徑的請求。
   // 注意 Cloudflare Pages 對任何不存在的路徑都回 200＋整份 index.html，所以
   // navigate 一律走殼策略，不去猜路徑。
   const isShell =
-    req.mode === 'navigate' ||
-    url.pathname === '/' ||
-    url.pathname.endsWith('/index.html') ||
-    SHELL_URLS.includes(url.pathname.replace(/^\//, ''));
+    !isStory &&
+    (req.mode === 'navigate' ||
+      url.pathname === '/' ||
+      url.pathname.endsWith('/index.html') ||
+      SHELL_URLS.includes(url.pathname.replace(/^\//, '')));
 
   event.respondWith(isShell ? shellStrategy(req) : assetStrategy(req));
 });

@@ -2926,6 +2926,8 @@ a {
   color: var(--color-text-muted);
 }
 
+/* 底色用 accent-dark：11px 白字壓在 accent 上只有 3.6:1，壓在 accent-dark 上是 5.2:1。
+   （全站的主要按鈕維持 accent——那是 16px 粗體＋大點擊區的既有樣式，不在這裡改。） */
 .streak-card__pb {
   margin-left: auto;
   flex-shrink: 0;
@@ -2933,7 +2935,7 @@ a {
   font-weight: 800;
   letter-spacing: 0.04em;
   color: var(--color-accent-contrast);
-  background: var(--color-accent);
+  background: var(--color-accent-dark);
   border-radius: var(--radius-full);
   padding: 2px var(--space-2);
 }
@@ -3072,11 +3074,13 @@ a {
   gap: var(--space-2);
 }
 
+/* accent-dark 而不是 accent：11px 的 accent 在淺色底只有 3.4:1（AA 小字要 4.5），
+   accent-dark 是 5.19:1；深色模式的 accent-dark 是 #E8590C，同樣過關。 */
 .shooter-note__kicker {
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.14em;
-  color: var(--color-accent);
+  color: var(--color-accent-dark);
 }
 
 .shooter-note__fact {
