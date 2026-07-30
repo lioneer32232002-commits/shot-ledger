@@ -227,6 +227,69 @@ export function bestRoundStreakAllTime(sessions, excludeSessionId) {
   return best;
 }
 
+// ---------------------------------------------------------------------------
+// SPEC_M20 §2：鬼影對照（跟過去的自己同期比）
+// ---------------------------------------------------------------------------
+
+/**
+ * 同菜單同變體的歷史最佳節（依整節命中率），用來當「鬼影」。
+ * progress.best 只存了 {pct, att, mk, date} 沒有逐輪資料，所以要回頭從 sessions 找那一節。
+ * @param {Array} sessions
+ * @param {string} menuId
+ * @param {string|null} variant
+ * @param {string|null} [excludeSessionId] 排除進行中的這一節
+ * @returns {Object|null}
+ */
+export function bestSessionFor(sessions, menuId, variant, excludeSessionId) {
+  let best = null;
+  let bestPct = -1;
+  for (const s of sessions || []) {
+    if (s.mode !== menuId || s.variant !== variant) continue;
+    if (!s.endedAt) continue;
+    if (excludeSessionId && s.id === excludeSessionId) continue;
+    const p = sessionPct(s);
+    if (p === null) continue;
+    if (p > bestPct) {
+      bestPct = p;
+      best = s;
+    }
+  }
+  return best;
+}
+
+/**
+ * 鬼影對照：兩節在「第 k 輪為止」的累計命中率，k = 兩者輪數的較小值。
+ *
+ * 為什麼比「累計到第 k 輪」而不是「第 k 輪單輪」：單輪命中率跳動太大（10 球一輪，
+ * 差一顆就是 10 個百分點），累計才看得出趨勢——這也是進行中最想知道的事：
+ * 「照這個節奏，我會不會贏過自己上次最好的那一場」。
+ * @param {Array} currentRounds
+ * @param {Array} ghostRounds
+ * @returns {{k:number, cur:{att:number,mk:number,pct:number|null}, ghost:{att:number,mk:number,pct:number|null}, diff:number|null}|null}
+ *   任一方沒有輪次回傳 null（沒得比）。diff＝目前 − 鬼影（百分點），任一方 pct 為 null 時為 null。
+ */
+export function ghostAt(currentRounds, ghostRounds) {
+  const cur = currentRounds || [];
+  const ghost = ghostRounds || [];
+  const k = Math.min(cur.length, ghost.length);
+  if (k === 0) return null;
+
+  const sum = (rounds) => {
+    let att = 0;
+    let mk = 0;
+    for (let i = 0; i < k; i += 1) {
+      att += Number(rounds[i].attempts) || 0;
+      mk += Number(rounds[i].makes) || 0;
+    }
+    return { att, mk, pct: pct(mk, att) };
+  };
+
+  const a = sum(cur);
+  const b = sum(ghost);
+  const diff = a.pct === null || b.pct === null ? null : a.pct - b.pct;
+  return { k, cur: a, ghost: b, diff };
+}
+
 /**
  * 評估一節是否達成 passRule；只對 variant==="full" 的挑戰節評估，其餘一律 pass:false。
  * @param {Object} session
@@ -599,8 +662,34 @@ export const THREES_BADGE_TIERS = [
   [200, 'threes_200'], [500, 'threes_500'], [1000, 'threes_1000'], [2000, 'threes_2000'],
 ];
 
-/** 出席／進球／三分徽章 id 清單（連續 3〜60 天、累計進球 500〜8000 顆不含上籃、
- *  三分進球 200〜2000 顆含深三）。 */
+// 上籃進球徽章（SPEC_M20 新增家族）。上籃被排除在生涯數字與進球徽章之外（M13 的
+// 決定是對的：命中率天生偏高，混進去等於開後門），但菜單裡有 11 輪上籃（第 1／2／3／
+// 12／13 關），投了卻完全不算會讓人覺得白投——所以給它自己的門牌。
+//
+// 這不會重現 M13 的灌水問題：那個問題是「命中率」與「同一個計數器」被上籃拉高，
+// 而這裡是獨立計數、獨立門檻，跟三分家族一樣是平行的一條線。
+// 門檻依實際量體推算：有上籃的 5 關各打一次＝11 輪 110 球、約 80 進，
+// 100 進≈那 5 關跑 1.2 趟、800 進≈10 趟，節奏與其他家族對得上。
+export const LAYUP_BADGE_TIERS = [
+  [100, 'layups_100'], [300, 'layups_300'], [800, 'layups_800'],
+];
+
+/** 全期累計上籃出手／進球（獨立門牌，不進生涯數字也不進進球徽章）。 */
+export function lifetimeLayupTotals(sessions) {
+  let att = 0;
+  let mk = 0;
+  for (const s of sessions || []) {
+    for (const r of s.rounds || []) {
+      if (r.type !== 'layup') continue;
+      att += Number(r.attempts) || 0;
+      mk += Number(r.makes) || 0;
+    }
+  }
+  return { att, mk };
+}
+
+/** 出席／進球／三分／上籃徽章 id 清單（連續 3〜60 天、累計進球 500〜8000 顆不含上籃、
+ *  三分進球 200〜2000 顆含深三、上籃進球 100〜800 顆）。 */
 export function computeBadges(sessions, now) {
   const badges = [];
   const streak = streakDays(sessions, now);
@@ -609,6 +698,8 @@ export function computeBadges(sessions, now) {
   for (const [n, id] of MAKES_BADGE_TIERS) if (makes >= n) badges.push(id);
   const threes = lifetimeThreeMakes(sessions);
   for (const [n, id] of THREES_BADGE_TIERS) if (threes >= n) badges.push(id);
+  const layups = lifetimeLayupTotals(sessions).mk;
+  for (const [n, id] of LAYUP_BADGE_TIERS) if (layups >= n) badges.push(id);
   return badges;
 }
 

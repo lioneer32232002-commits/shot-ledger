@@ -5,7 +5,7 @@
 // 都可以安全 import，不會形成循環。
 // 發章邏輯不在這裡——仍在 store.applyChallengeResult（computeBadges＋ladder_complete）。
 
-import { streakDays, lifetimeMakes, lifetimeThreeMakes, formatThousands } from './stats.js';
+import { streakDays, lifetimeMakes, lifetimeThreeMakes, lifetimeLayupTotals, formatThousands } from './stats.js';
 import { ladderMenus } from './menus.js';
 
 export const BADGE_LABEL = {
@@ -27,16 +27,21 @@ export const BADGE_LABEL = {
   threes_500: '三分進球 500 顆',
   threes_1000: '三分進球 1,000 顆',
   threes_2000: '三分進球 2,000 顆',
+  layups_100: '上籃進球 100 顆',
+  layups_300: '上籃進球 300 顆',
+  layups_800: '上籃進球 800 顆',
   stars_10: '摘星 10 顆',
   stars_25: '摘星 25 顆',
   stars_full: '星星全滿',
 };
 
-// 全部 21 顆依家族＋成就順序（2026-07-28 改版：出席 5／進球 6／三分 4／摘星 3／
-// 階梯 3）。capstone＝全破階梯，在牆上跨滿整列當壓軸。stars_full 與
+// 全部 24 顆依家族＋成就順序（出席 5／進球 6／三分 4／上籃 3／摘星 3／階梯 3）。capstone＝全破階梯，在牆上跨滿整列當壓軸。stars_full 與
 // ladder_complete 的 target 為 null＝動態算（關數 × 3／關數），關數再變也不用改定義。
-// 21 顆正好是生涯分享卡三列 7+7+7 的上限（sharecard.js layoutBadgeRows），再加
-// 家族之前要先確認那邊的版面。
+// ⚠️ 生涯分享卡一次只畫得下 21 顆（sharecard.js layoutBadgeRows：三列 ×7，超過就把
+// 最後一格換成「＋N」）。加了上籃家族後定義總數是 24，所以「已獲得 22 顆以上」的人
+// 卡片上會出現 ＋N——那是既有的溢出設計，不是壞掉；要真的畫滿 24 顆得改成一列 8 顆
+// （圓盤要從 112px 縮到 95px）或加第四列（吃掉固定卡高的垂直空間），兩者都會動到
+// 已經調好的版面，留待日後真有需要再處理（SPEC_M20 §1.3）。
 const BADGE_DEFS = [
   { id: 'streak_3', icon: 'flame', kind: 'streak', target: 3 },
   { id: 'streak_7', icon: 'flame', kind: 'streak', target: 7 },
@@ -53,6 +58,9 @@ const BADGE_DEFS = [
   { id: 'threes_500', icon: 'arc', kind: 'threes', target: 500 },
   { id: 'threes_1000', icon: 'arc', kind: 'threes', target: 1000 },
   { id: 'threes_2000', icon: 'arc', kind: 'threes', target: 2000 },
+  { id: 'layups_100', icon: 'rim', kind: 'layups', target: 100 },
+  { id: 'layups_300', icon: 'rim', kind: 'layups', target: 300 },
+  { id: 'layups_800', icon: 'rim', kind: 'layups', target: 800 },
   { id: 'stars_10', icon: 'star', kind: 'stars', target: 10 },
   { id: 'stars_25', icon: 'star', kind: 'stars', target: 25 },
   { id: 'stars_full', icon: 'star', kind: 'stars', target: null },
@@ -77,6 +85,9 @@ export const ICON_PATH = {
   // 三分線：底線（上）＋兩側直線段＋圓弧（下），中間的小圓是籃框——就是球場圖
   // 上半場三分線的形狀，縮到 14px 仍是一個好認的「ㄩ」形輪廓，不會跟 ball 撞。
   arc: '<path d="M4 5h16"/><path d="M4 5v4a8 8 0 0 0 16 0V5"/><circle cx="12" cy="7.6" r="1.3"/>',
+  // 上籃：籃框橫線＋四條網線＋框正上方的球。與 arc 的差別很明顯（那個是「ㄩ」形的
+  // 三分線輪廓、球在框裡），這顆是「貼著框」的近距離語意。只用 path／circle。
+  rim: '<path d="M5 14h14"/><path d="M7.4 14l1.4 4.4M16.6 14l-1.4 4.4M10.6 14l.5 4.8M13.4 14l-.5 4.8"/><circle cx="12" cy="7.4" r="3.4"/>',
   star: '<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9L12 3Z"/>',
   trophy: '<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>',
 };
@@ -110,7 +121,7 @@ export function badgeNumeral(def) {
   if (kind === 'streak') return { num: `${target}`, unit: '天', icon };
   // 進球／三分同樣掛「進」——分享卡沒有文字說明，光看數字分不出是投了幾顆還是
   // 進了幾顆（這正是這次改版的重點），兩個家族靠正下方的家族標記區分。
-  if (kind === 'makes' || kind === 'threes') return { num: formatMakesTarget(target), unit: '進', icon };
+  if (kind === 'makes' || kind === 'threes' || kind === 'layups') return { num: formatMakesTarget(target), unit: '進', icon };
   if (kind === 'stars') {
     const t = id === 'stars_full' ? ladderMenus().length * 3 : target;
     return { num: `${t}`, unit: '★', icon };
@@ -249,6 +260,7 @@ function badgeStatus(state, now) {
   const streak = streakDays(state.sessions, now);
   const totalMakes = lifetimeMakes(state.sessions);
   const threeMakes = lifetimeThreeMakes(state.sessions);
+  const layupMakes = lifetimeLayupTotals(state.sessions).mk;
   const ladder = ladderProgress(state);
   const stars = starsCount(state);
 
@@ -260,8 +272,8 @@ function badgeStatus(state, now) {
     if (def.kind === 'streak') {
       progress = streak / target;
       meta = `${Math.min(streak, target)} / ${target} 天`;
-    } else if (def.kind === 'makes' || def.kind === 'threes') {
-      const got = def.kind === 'makes' ? totalMakes : threeMakes;
+    } else if (def.kind === 'makes' || def.kind === 'threes' || def.kind === 'layups') {
+      const got = def.kind === 'makes' ? totalMakes : def.kind === 'threes' ? threeMakes : layupMakes;
       progress = got / target;
       meta = `${formatThousands(Math.min(got, target))} / ${formatThousands(target)} 進`;
     } else if (def.kind === 'stars') {
@@ -273,7 +285,7 @@ function badgeStatus(state, now) {
       progress = ladder.passed / target;
       meta = `已通過 ${Math.min(ladder.passed, target)} / ${target} 關`;
     }
-    return { ...def, earned, progress, meta, target, streak, totalMakes, threeMakes, ladder, stars };
+    return { ...def, earned, progress, meta, target, streak, totalMakes, threeMakes, layupMakes, ladder, stars };
   });
 }
 
@@ -371,6 +383,10 @@ export function badgeStripHtml(state, now = new Date()) {
     hint = next.threeMakes > 0
       ? `三分已進 ${formatThousands(next.threeMakes)} 顆，再 ${formatThousands(Math.max(next.target - next.threeMakes, 0))} 顆到手`
       : `三分累計進滿 ${formatThousands(next.target)} 顆就是你的`;
+  } else if (next.kind === 'layups') {
+    hint = next.layupMakes > 0
+      ? `上籃已進 ${formatThousands(next.layupMakes)} 顆，再 ${formatThousands(Math.max(next.target - next.layupMakes, 0))} 顆到手`
+      : `上籃累計進滿 ${formatThousands(next.target)} 顆就是你的`;
   } else if (next.kind === 'stars') {
     hint = next.stars.earned > 0
       ? `已摘 ${Math.min(next.stars.earned, next.target)} 顆星，再 ${Math.max(next.target - next.stars.earned, 0)} 顆到手`

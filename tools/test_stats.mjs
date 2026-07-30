@@ -10,6 +10,7 @@ import {
   challengeForecast, maxStreakDays, computeBadges,
   sessionRoundSeries, roundHalfSplit,
   roundBar, isStreakRound, roundStreak, bestRoundStreakAllTime,
+  lifetimeLayupTotals, bestSessionFor, ghostAt,
 } from '../js/stats.js';
 
 let passed = 0;
@@ -377,6 +378,88 @@ test('bestRoundStreakAllTime：可排除某節（結算頁比「本節 vs 過去
   const sessions = [{ id: 'past', rounds: mk([5, 5]) }, { id: 'now', rounds: mk([5, 5, 5, 5]) }];
   assert.equal(bestRoundStreakAllTime(sessions, 'now'), 2);
   assert.equal(bestRoundStreakAllTime([], 'now'), 0);
+});
+
+console.log('上籃門牌 lifetimeLayupTotals() ／ 上籃徽章');
+
+test('lifetimeLayupTotals：只算上籃，其餘球種一概不計', () => {
+  const sessions = [{ rounds: [
+    { type: 'layup', attempts: 10, makes: 8 },
+    { type: '2pt', attempts: 10, makes: 5 },
+    { type: 'layup', attempts: 20, makes: 15 },
+    { type: 'ft', attempts: 10, makes: 9 },
+  ] }];
+  assert.deepEqual(lifetimeLayupTotals(sessions), { att: 30, mk: 23 });
+  assert.deepEqual(lifetimeLayupTotals([]), { att: 0, mk: 0 });
+  assert.deepEqual(lifetimeLayupTotals(undefined), { att: 0, mk: 0 });
+});
+
+test('上籃徽章三級門檻，且不受其他球種影響', () => {
+  const s = dayFixture(0, 10);
+  s.rounds = [
+    { type: 'layup', attempts: 400, makes: 320 },
+    { type: '3pt', attempts: 2000, makes: 900 }, // 三分再多也不會讓上籃徽章跳級
+  ];
+  const badges = computeBadges([s], new Date());
+  assert.ok(badges.includes('layups_100') && badges.includes('layups_300'));
+  assert.ok(!badges.includes('layups_800'));
+});
+
+test('上籃進球不會混進進球／三分徽章的計數', () => {
+  const s = dayFixture(0, 10);
+  s.rounds = [{ type: 'layup', attempts: 1000, makes: 900 }];
+  const badges = computeBadges([s], new Date());
+  assert.ok(badges.includes('layups_800'));
+  assert.ok(!badges.some((b) => b.startsWith('makes_') || b.startsWith('threes_')));
+});
+
+console.log('鬼影對照 bestSessionFor() / ghostAt()');
+
+test('bestSessionFor：同菜單同變體、已結束、命中率最高的那一場', () => {
+  const mk = (id, mode, variant, makes, ended = true) => ({
+    id, mode, variant, endedAt: ended ? '2026-07-30T00:00:00.000Z' : null,
+    rounds: [{ type: '3pt', attempts: 10, makes }],
+  });
+  const sessions = [
+    mk('a', 'allen', 'full', 4),
+    mk('b', 'allen', 'full', 7),
+    mk('c', 'allen', 'easy', 9),      // 變體不同，不算
+    mk('d', 'klay', 'full', 9),       // 菜單不同，不算
+    mk('e', 'allen', 'full', 10, false), // 還沒結束，不算
+  ];
+  assert.equal(bestSessionFor(sessions, 'allen', 'full').id, 'b');
+  assert.equal(bestSessionFor(sessions, 'allen', 'full', 'b').id, 'a'); // 排除最佳那場
+  assert.equal(bestSessionFor(sessions, 'lillard', 'full'), null);
+  assert.equal(bestSessionFor([], 'allen', 'full'), null);
+});
+
+test('ghostAt：比到兩者輪數的較小值，回傳累計命中率與差距', () => {
+  const r = (makes) => ({ type: '3pt', attempts: 10, makes });
+  const cur = [r(6), r(5), r(4)];      // 15/30 = 50%
+  const ghost = [r(4), r(4), r(4), r(9)]; // 前 3 輪 12/30 = 40%
+  const g = ghostAt(cur, ghost);
+  assert.equal(g.k, 3);
+  assert.deepEqual(g.cur, { att: 30, mk: 15, pct: 50 });
+  assert.deepEqual(g.ghost, { att: 30, mk: 12, pct: 40 });
+  assert.equal(g.diff, 10);
+});
+
+test('ghostAt：鬼影比較短時只比到鬼影的長度', () => {
+  const r = (makes) => ({ type: '3pt', attempts: 10, makes });
+  const g = ghostAt([r(5), r(5), r(5)], [r(3)]);
+  assert.equal(g.k, 1);
+  assert.deepEqual(g.cur, { att: 10, mk: 5, pct: 50 });
+  assert.equal(g.diff, 20);
+});
+
+test('ghostAt：任一方沒有輪次回傳 null；出手為 0 時 pct 與 diff 為 null', () => {
+  const r = (makes) => ({ type: '3pt', attempts: 10, makes });
+  assert.equal(ghostAt([], [r(5)]), null);
+  assert.equal(ghostAt([r(5)], []), null);
+  assert.equal(ghostAt(undefined, undefined), null);
+  const zero = ghostAt([{ type: '3pt', attempts: 0, makes: 0 }], [r(5)]);
+  assert.equal(zero.cur.pct, null);
+  assert.equal(zero.diff, null);
 });
 
 console.log('evaluatePassRule()');

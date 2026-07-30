@@ -11,6 +11,7 @@ import {
   isChallengeEligible, challengeIneligibleReason, paceAssessment, pctGapToShots, typeAvgAllTime,
   equivalentTier, lifetimeTotals, weekAttempts, challengeForecast, formatThousands,
   roundBar, roundStreak, isStreakRound, bestRoundStreakAllTime, STREAK_BAR_PER_10,
+  bestSessionFor, ghostAt,
 } from './stats.js';
 import { BADGE_LABEL, badgeStripHtml } from './badges.js';
 import { pageBannerHtml } from './pagebanner.js';
@@ -963,6 +964,47 @@ function renderStreakCardHtml(session, allSessions) {
   `;
 }
 
+/**
+ * 鬼影對照（SPEC_M20 §2）：練習中跟「同菜單的個人最佳那一場」比同期累計命中率。
+ *
+ * 為什麼比累計而不是比單輪：10 球一輪差一顆就是 10 個百分點，單輪跳動太大讀不出訊息；
+ * 累計才回答進行中真正想知道的問題——「照這個節奏，我會不會贏過自己最好的那一場」。
+ * 沒有可比的歷史場次（第一次打這關）就整塊不顯示，不用空狀態佔位。
+ */
+function renderGhostRailHtml() {
+  const ghostSession = bestSessionFor(state.sessions, activeSession.mode, activeSession.variant, activeSession.id);
+  if (!ghostSession) return '';
+  const g = ghostAt(activeSession.rounds, ghostSession.rounds);
+  if (!g || g.cur.pct === null || g.ghost.pct === null) return '';
+
+  const diff = g.diff;
+  let cls = 'ghost-rail__delta';
+  let deltaText;
+  let aria;
+  if (diff > 0) {
+    cls += ' is-ahead';
+    deltaText = `+${diff}`;
+    aria = `領先個人最佳同期 ${diff} 個百分點`;
+  } else if (diff < 0) {
+    cls += ' is-behind';
+    deltaText = `${diff}`;
+    aria = `落後個人最佳同期 ${Math.abs(diff)} 個百分點`;
+  } else {
+    deltaText = '±0';
+    aria = '與個人最佳同期相同';
+  }
+
+  return `
+    <section class="ghost-rail">
+      <span class="ghost-rail__text">
+        <span class="ghost-rail__label">個人最佳同期（第 ${g.k} 輪為止）</span>
+        <span class="ghost-rail__cmp">你 <strong>${g.cur.pct}%</strong>　最佳當時 ${g.ghost.pct}%</span>
+      </span>
+      <span class="${cls}" aria-label="${aria}">${deltaText}</span>
+    </section>
+  `;
+}
+
 function renderActive() {
   const menu = getMenu(activeSession.mode);
   const seqList = getMenuRounds(menu, activeSession.variant);
@@ -1028,6 +1070,7 @@ function renderActive() {
         <h2 class="section-title">挑戰進度（即時）</h2>
         ${renderPassRuleBars(evaluatePassRule(activeSession, menu.passRule).detail, forecast ? forecast.detail : null)}
       </section>
+      ${renderGhostRailHtml()}
       ${forecastBannerHtml}`
     : '';
 

@@ -2646,6 +2646,67 @@ a {
 }
 
 /* ---------------------------------------------------------------------- */
+/* 鬼影對照（SPEC_M20 §2）：練習中跟個人最佳的同期比                          */
+/*                                                                        */
+/* 刻意做得比連莊 rail 安靜——連莊是「現在正在發生的事」（會跳、會斷），       */
+/* 鬼影是背景參照，給一眼掃過的資訊量就好，不要跟挑戰進度條搶注意力。          */
+/* ---------------------------------------------------------------------- */
+
+.ghost-rail {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+
+.ghost-rail__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.ghost-rail__label {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.ghost-rail__cmp {
+  font-size: var(--text-sm);
+  color: var(--color-text);
+}
+
+.ghost-rail__cmp strong {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 差距用「顏色＋正負號」雙重編碼：色盲使用者只看符號也讀得出領先或落後 */
+.ghost-rail__delta {
+  flex-shrink: 0;
+  font-size: var(--text-sm);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--color-surface-sunken);
+}
+
+.ghost-rail__delta.is-ahead {
+  color: var(--color-success);
+  background: var(--color-success-tint);
+}
+
+.ghost-rail__delta.is-behind {
+  color: var(--color-danger-text);
+  background: var(--color-danger-tint);
+}
+
+/* ---------------------------------------------------------------------- */
 /* 連莊 rail（練習中）＋ pip（SPEC_M14 §1.3）                                */
 /*                                                                        */
 /* pip 刻意用小方塊而不是圓點：球場圖的熱區點與三星都已經是圓／星，方塊才不會   */
@@ -3816,6 +3877,26 @@ a {
   font-size: var(--text-xs);
   color: var(--color-text-muted);
   text-align: center;
+}
+
+/* 上籃另計（SPEC_M20 §1）：獨立一行、上方一條細線隔開——它跟上面那組數字不是
+   同一個口徑，排在一起會被誤讀成「總投裡面有含」。 */
+.lifetime-card__layup {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+}
+
+.lifetime-card__layup-label {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--color-text-muted);
 }
 
 /* M10：生涯累計卡標題列（左標題右分享鈕，語彙照 .goal-card__head／.goal-card__edit） */

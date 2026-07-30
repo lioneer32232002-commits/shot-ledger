@@ -6,7 +6,7 @@ import * as store from './store.js';
 import { renderCourt } from './court.js';
 import {
   aggregate, pct, sessionsInRange, pctSeries, calendarCells, avgRoundCurve, weekAttempts,
-  lifetimeTotals, sessionRoundSeries, roundHalfSplit,
+  lifetimeTotals, sessionRoundSeries, roundHalfSplit, lifetimeLayupTotals,
 } from './stats.js';
 import { formatThousands } from './session.js';
 import { badgeWallHtml } from './badges.js';
@@ -127,6 +127,10 @@ function renderBadgeSection(now) {
 function renderLifetimeCard() {
   const lifetime = lifetimeTotals(state.sessions);
   const lifetimePct = pct(lifetime.mk, lifetime.att);
+  // 上籃另計（SPEC_M20 §1）：不混進上面的命中率口徑，但也不能當它沒發生——
+  // 菜單裡有 11 輪上籃，投了卻在任何地方都看不到，會覺得白投。
+  const layup = lifetimeLayupTotals(state.sessions);
+  const layupPct = pct(layup.mk, layup.att);
   // 練習次數只算已結束的 session；輪次含進行中的一節（與設定頁「N 次練習 / M 輪」算法一致）。
   const sessionCount = state.sessions.filter((s) => s.endedAt !== null).length;
   const roundCount = state.sessions.reduce((sum, s) => sum + s.rounds.length, 0);
@@ -143,6 +147,12 @@ function renderLifetimeCard() {
         <div class="lifetime-card__total"><div class="lifetime-card__num lifetime-card__num--accent">${lifetimePct === null ? '—' : lifetimePct + '%'}</div><div class="lifetime-card__label">命中率</div></div>
       </div>
       <p class="lifetime-card__meta"><span class="nowrap">${sessionCount} 次練習・${roundCount} 輪</span><br>生涯數字不含上籃</p>
+      ${layup.att === 0 ? '' : `
+        <p class="lifetime-card__layup">
+          <span class="lifetime-card__layup-label">上籃另計</span>
+          <span class="nowrap">${formatThousands(layup.att)} 投 / ${formatThousands(layup.mk)} 進${layupPct === null ? '' : `（${layupPct}%）`}</span>
+        </p>
+      `}
     </section>
   `;
 }

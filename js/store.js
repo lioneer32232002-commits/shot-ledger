@@ -5,12 +5,13 @@ import { MENUS, getMenu, nextMenuId, ladderMenus } from './menus.js';
 import {
   isChallengeEligible, evaluatePassRule, sessionPct, aggregate, computeBadges, evaluateStars,
   maxStreakDays, lifetimeMakes, lifetimeThreeMakes,
-  STREAK_BADGE_TIERS, MAKES_BADGE_TIERS, THREES_BADGE_TIERS,
+  STREAK_BADGE_TIERS, MAKES_BADGE_TIERS, THREES_BADGE_TIERS, LAYUP_BADGE_TIERS,
+  lifetimeLayupTotals,
 } from './stats.js';
 // menus.js / stats.js 都是無相依的純資料／純函式模組，這裡 import 不會形成循環。
 
 const KEY = 'shotledger_v1';
-const SCHEMA_VERSION = 15;
+const SCHEMA_VERSION = 16;
 
 function emptyProgress() {
   // passed：明確記錄「已通過」的 menu id（SPEC_M11 §4.1）。舊版沒有這個欄位，
@@ -330,6 +331,20 @@ function migrate(data) {
       data.progress.unlocked.push('taurasi');
     }
     data.schema = 15;
+  }
+
+  if (data.schema < 16) {
+    // 上籃徽章家族回溯發章（SPEC_M20 §1）：上籃一直都有被記進 rounds，只是沒有任何
+    // 地方替它計數。新家族上線時要把過去投進的上籃補算回來——不然老使用者會看到一個
+    // 從 0 開始的家族，明明他早就投了幾百顆。
+    // 與所有徽章一樣只加不減；這裡不動任何既有徽章。
+    if (!data.progress || typeof data.progress !== 'object') data.progress = emptyProgress();
+    if (!Array.isArray(data.progress.badges)) data.progress.badges = [];
+    const layups = lifetimeLayupTotals(data.sessions).mk;
+    for (const [n, id] of LAYUP_BADGE_TIERS) {
+      if (layups >= n && !data.progress.badges.includes(id)) data.progress.badges.push(id);
+    }
+    data.schema = 16;
   }
 
   // 保底：不管資料是從哪個版本進來的，progress / settings.inputMode / settings.weeklyGoal / settings.theme / settings.cardBg / settings.homeSeen / settings.backupNudgeBase 形狀都要正確。

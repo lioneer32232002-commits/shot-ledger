@@ -10,7 +10,7 @@ import * as homePage from './home.js';
 import { MENUS, ladderMenus } from './menus.js';
 import { formatThousands } from './session.js';
 import { starsCount } from './badges.js';
-import { lifetimeTotals, pct } from './stats.js';
+import { lifetimeTotals, pct, lifetimeLayupTotals } from './stats.js';
 import { pageBannerHtml } from './pagebanner.js';
 import { isStandalone, installSteps } from './env.js';
 
@@ -208,6 +208,8 @@ function renderSettings() {
   const { earned: starsEarned, total: starsTotal } = starsCount(settingsState);
   const lifetime = lifetimeTotals(settingsState.sessions);
   const lifetimePct = pct(lifetime.mk, lifetime.att);
+  const layup = lifetimeLayupTotals(settingsState.sessions);
+  const layupPct = pct(layup.mk, layup.att);
 
   const theme = settingsState.settings.theme;
   const themeOptions = [
@@ -246,6 +248,7 @@ function renderSettings() {
         <p class="settings-card__row">挑戰階梯：已解鎖 <strong class="nowrap">${unlocked}/${total} 關</strong></p>
         <p class="settings-card__row">星星：<strong class="nowrap">${starsEarned} / ${starsTotal}</strong></p>
         <p class="settings-card__row">生涯累計：<strong class="nowrap">${formatThousands(lifetime.att)} 投</strong> / <strong class="nowrap">${formatThousands(lifetime.mk)} 中</strong>${lifetimePct === null ? '' : `<span class="nowrap">（${lifetimePct}%）</span>`}<span class="nowrap">（不含上籃）</span></p>
+        ${layup.att === 0 ? '' : `<p class="settings-card__row">上籃另計：<strong class="nowrap">${formatThousands(layup.att)} 投</strong> / <strong class="nowrap">${formatThousands(layup.mk)} 進</strong>${layupPct === null ? '' : `<span class="nowrap">（${layupPct}%）</span>`}</p>`}
         <p class="settings-card__row">上次備份：<span class="nowrap">${formatBackupTime(settingsState.settings.lastBackupAt)}</span><span class="nowrap">${backupAgeLabel(settingsState)}</span></p>
       </section>
 
